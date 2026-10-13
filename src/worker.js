@@ -1,5 +1,13 @@
-// Worker de Cloudflare: sirve la app (carpeta web/) y expone /api/rnc,
-// que consulta el RNC/cédula en la página pública de la DGII.
+// Worker de Cloudflare: sirve la app (carpeta web/) y expone:
+//   /api/rnc      consulta el RNC/cédula en la página pública de la DGII
+//   /api/ecf/*    facturación electrónica (firma y envío de e-CF a la DGII)
+import {
+  construirECF, construirRFCE, calcularECF, signTree, importPrivateKey, obtenerToken, enviarECF, enviarRFCE,
+  consultarResultado, urlTimbre, fechaHoraRD, b64, unb64, LIMITE_RFCE, AMBIENTES,
+} from './ecf.js';
+
+const SB_URL = 'https://gwvqpnmwqvqrmsbpwmhj.supabase.co';
+const SB_KEY = 'sb_publishable_JG_uubMg9brkjoIz7x-Xmw_uCyvz3F6';
 const DGII_URL = 'https://dgii.gov.do/app/WebApps/ConsultasWeb2/ConsultasWeb/consultas/rnc.aspx';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
@@ -19,9 +27,182 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/api/rnc') return consultarRNC(url, ctx);
+    if (url.pathname.startsWith('/api/ecf/')) {
+      try {
+        if (request.method !== 'POST') return json({ ok: false, error: 'Método no permitido' }, 405);
+        const jwt = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+        if (!jwt) return json({ ok: false, error: 'Debes iniciar sesión.' }, 401);
+        const body = await request.json().catch(() => ({}));
+        const ruta = url.pathname.slice('/api/ecf/'.length);
+        if (ruta === 'certificado') return json(await guardarCertificado(env, jwt, body));
+        if (ruta === 'emitir') return json(await emitirECF(env, jwt, body));
+        if (ruta === 'consultar') return json(await consultarECF(env, jwt, body));
+        return json({ ok: false, error: 'Ruta no encontrada' }, 404);
+      } catch (err) {
+        return json({ ok: false, error: String(err && err.message || err) }, 400);
+      }
+    }
     return env.ASSETS.fetch(request);
   },
 };
+
+/* ---------------- Facturación electrónica ---------------- */
+
+// Acceso a Supabase con el token del usuario: las políticas RLS deciden qué puede leer o escribir.
+async function sb(jwt, path, opts = {}) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: { apikey: SB_KEY, authorization: `Bearer ${jwt}`, 'content-type': 'application/json', ...(opts.headers || {}) },
+  });
+  const t = await r.text();
+  let d; try { d = t ? JSON.parse(t) : null; } catch { d = t; }
+  if (!r.ok) throw new Error((d && (d.message || d.error_description || d.error)) || `Supabase HTTP ${r.status}`);
+  return d;
+}
+const uno = rows => (Array.isArray(rows) ? rows[0] : rows);
+
+async function claveMaestra(env) {
+  if (!env.ECF_MASTER_KEY) throw new Error('Falta configurar el secreto ECF_MASTER_KEY en Cloudflare (Worker → Settings → Variables and Secrets).');
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(env.ECF_MASTER_KEY));
+  return crypto.subtle.importKey('raw', h, 'AES-GCM', false, ['encrypt', 'decrypt']);
+}
+
+async function guardarCertificado(env, jwt, { empresaId, ambiente, pkcs8, cert, info }) {
+  if (!empresaId) throw new Error('Falta la empresa.');
+  if (ambiente && !AMBIENTES[ambiente]) throw new Error('Ambiente inválido.');
+  const fila = { empresa_id: empresaId };
+  if (ambiente) fila.ambiente = ambiente;
+  if (pkcs8 && cert) {
+    await importPrivateKey(pkcs8); // valida que la clave sea utilizable
+    const key = await claveMaestra(env);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrip = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(pkcs8));
+    Object.assign(fila, { cert_b64: cert, key_enc: b64(encrip), key_iv: b64(iv), cert_info: info || {} });
+  }
+  const r = await sb(jwt, 'ecf_config?on_conflict=empresa_id', {
+    method: 'POST', body: JSON.stringify(fila),
+    headers: { prefer: 'resolution=merge-duplicates,return=representation' },
+  });
+  const c = uno(r);
+  if (!c) throw new Error('No tienes permiso para configurar esta empresa.');
+  return { ok: true, ambiente: c.ambiente, certInfo: c.cert_info };
+}
+
+async function firmante(env, jwt, empresaId) {
+  const c = uno(await sb(jwt, `ecf_config?empresa_id=eq.${empresaId}&select=*`));
+  if (!c || !c.key_enc) throw new Error('La empresa no tiene certificado digital cargado (Empresas → Facturación electrónica).');
+  const key = await claveMaestra(env);
+  let pkcs8;
+  try {
+    pkcs8 = new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(c.key_iv) }, key, unb64(c.key_enc)));
+  } catch { throw new Error('No se pudo descifrar el certificado. ¿Cambió el secreto ECF_MASTER_KEY? Vuelve a cargar el certificado.'); }
+  return { ambiente: c.ambiente, privateKey: await importPrivateKey(pkcs8), cert: c.cert_b64, certRnc: (c.cert_info && c.cert_info.sn) || '' };
+}
+
+const facturaDeFila = r => ({ pagos: [], items: [], ...(r.data || {}), id: r.id, numero: r.numero, tipo: r.tipo, ncf: r.ncf || '', fecha: (r.data && r.data.fecha) || r.fecha });
+
+// Guarda data.ecf en la factura sin pisar cambios concurrentes.
+async function guardarEstado(jwt, id, ecf) {
+  for (let i = 0; i < 3; i++) {
+    const row = uno(await sb(jwt, `facturas?id=eq.${id}&select=data,updated_at`));
+    const data = { ...(row.data || {}), ecf: { ...((row.data || {}).ecf || {}), ...ecf } };
+    const upd = await sb(jwt, `facturas?id=eq.${id}&updated_at=eq.${encodeURIComponent(row.updated_at)}`, {
+      method: 'PATCH', body: JSON.stringify({ data }), headers: { prefer: 'return=representation' },
+    });
+    if (upd && upd.length) return data.ecf;
+  }
+  throw new Error('No se pudo guardar el estado del e-CF (la factura cambió). Consulta el estado de nuevo.');
+}
+
+const ESTADOS = { 0: 'No encontrado', 1: 'Aceptado', 2: 'Rechazado', 3: 'En Proceso', 4: 'Aceptado Condicional' };
+const mensajes = d => (d.mensajes || [])
+  .map(m => (typeof m === 'string' ? m : (m && m.valor ? (m.codigo !== undefined && m.codigo !== '' ? `${m.codigo}: ${m.valor}` : m.valor) : '')))
+  .filter(Boolean);
+
+async function emitirECF(env, jwt, { facturaId }) {
+  const row = uno(await sb(jwt, `facturas?id=eq.${facturaId}&select=*`));
+  if (!row) throw new Error('Factura no encontrada.');
+  const factura = facturaDeFila(row);
+  if (!/^E\d\d$/.test(factura.tipo)) throw new Error('Este comprobante no es electrónico.');
+  if (factura.estado === 'anulada') throw new Error('El comprobante está anulado.');
+  const prev = factura.ecf || {};
+  if (['Aceptado', 'Aceptado Condicional', 'En Proceso'].includes(prev.estado)) throw new Error(`Este e-CF ya fue enviado (estado: ${prev.estado}).`);
+  if (prev.estado === 'Rechazado' && prev.secuenciaUtilizada) throw new Error('La DGII rechazó este e-CF y su e-NCF ya no se puede reutilizar. Emite un comprobante nuevo.');
+
+  const [emp, seq] = await Promise.all([
+    sb(jwt, `empresas?id=eq.${row.empresa_id}&select=*`).then(uno),
+    sb(jwt, `secuencias?empresa_id=eq.${row.empresa_id}&tipo=eq.${factura.tipo}&select=*`).then(uno),
+  ]);
+  const empresa = { ...(emp.data || {}), nombre: emp.nombre };
+  let original = null;
+  if (factura.tipo === 'E34' || factura.tipo === 'E33') {
+    const o = uno(await sb(jwt, `facturas?id=eq.${factura.facturaAfectadaId}&select=*`));
+    if (!o) throw new Error('No se encontró la factura que afecta la nota.');
+    const of = facturaDeFila(o);
+    if (!of.ncf) throw new Error('La factura afectada no tiene NCF.');
+    original = { ncf: of.ncf, fecha: of.fecha, total: calcularECF(of).total };
+  }
+  const ids = [...new Set((factura.items || []).map(i => i.productoId).filter(Boolean))];
+  const tiposProducto = {};
+  if (ids.length) (await sb(jwt, `productos?id=in.(${ids.join(',')})&select=id,data`)).forEach(p => { tiposProducto[p.id] = p.data && p.data.tipo; });
+
+  const s = await firmante(env, jwt, row.empresa_id);
+  const fechaFirma = fechaHoraRD();
+  const { root, calc, tipo, data } = construirECF({ factura, empresa, original, vencimientoSecuencia: seq && seq.vence, tiposProducto, fechaHoraFirma: fechaFirma });
+  const { xml, signatureValue } = await signTree(root, s.privateKey, s.cert);
+  const codigoSeguridad = signatureValue.slice(0, 6);
+  const rncEmisor = String(empresa.rnc || '').replace(/\D/g, '');
+  const fileName = `${rncEmisor}${factura.ncf}.xml`;
+  const token = await obtenerToken(s.ambiente, s.privateKey, s.cert, rncEmisor);
+  const rfce = tipo === 32 && calc.total < LIMITE_RFCE;
+  const rncComprador = String((factura.cliente || {}).rnc || '').replace(/\D/g, '');
+  const base = {
+    ambiente: s.ambiente, codigoSeguridad, fechaFirma, xml, rfce, enviado: new Date().toISOString(), error: '',
+    montoTotal: calc.total.toFixed(2),
+    qr: urlTimbre({
+      ambiente: s.ambiente, rncEmisor, rncComprador: [9, 11].includes(rncComprador.length) ? rncComprador : '', encf: factura.ncf,
+      fechaEmision: factura.fecha.split('-').reverse().join('-'), montoTotal: calc.total.toFixed(2), fechaFirma, codigoSeguridad, rfce,
+    }),
+  };
+
+  let res;
+  if (rfce) {
+    const rf = construirRFCE({ ecfData: data, codigoSeguridad });
+    const firmado = await signTree(rf, s.privateKey, s.cert);
+    const d = await enviarRFCE(s.ambiente, token, firmado.xml, fileName);
+    res = { ...base, xmlRfce: firmado.xml, codigo: d.codigo, estado: d.estado || ESTADOS[d.codigo] || 'Desconocido', mensajes: mensajes(d), secuenciaUtilizada: d.secuenciaUtilizada !== false };
+  } else {
+    const d = await enviarECF(s.ambiente, token, xml, fileName);
+    res = { ...base, trackId: d.trackId, estado: 'En Proceso', codigo: 3, mensajes: [] };
+    for (const espera of [400, 900, 1500, 2500]) {
+      await new Promise(r => setTimeout(r, espera));
+      const q = await consultarResultado(s.ambiente, token, d.trackId).catch(() => null);
+      if (q && q.codigo !== 3 && q.codigo !== 0) {
+        Object.assign(res, { codigo: q.codigo, estado: q.estado || ESTADOS[q.codigo], mensajes: mensajes(q), secuenciaUtilizada: q.secuenciaUtilizada !== false, fechaRecepcion: q.fechaRecepcion });
+        break;
+      }
+    }
+  }
+  const ecf = await guardarEstado(jwt, facturaId, res);
+  return { ok: true, ecf };
+}
+
+async function consultarECF(env, jwt, { facturaId }) {
+  const row = uno(await sb(jwt, `facturas?id=eq.${facturaId}&select=*`));
+  if (!row) throw new Error('Factura no encontrada.');
+  const prev = (row.data && row.data.ecf) || {};
+  if (!prev.trackId) throw new Error(prev.rfce ? 'Las facturas de consumo menores a RD$250,000 se validan al enviarse; no tienen trackId.' : 'Este e-CF aún no se ha enviado.');
+  const s = await firmante(env, jwt, row.empresa_id);
+  const emp = uno(await sb(jwt, `empresas?id=eq.${row.empresa_id}&select=data`));
+  const token = await obtenerToken(prev.ambiente || s.ambiente, s.privateKey, s.cert, String((emp.data || {}).rnc || '').replace(/\D/g, ''));
+  const q = await consultarResultado(prev.ambiente || s.ambiente, token, prev.trackId);
+  const ecf = await guardarEstado(jwt, facturaId, {
+    codigo: q.codigo, estado: q.estado || ESTADOS[q.codigo], mensajes: mensajes(q),
+    secuenciaUtilizada: q.secuenciaUtilizada !== false, fechaRecepcion: q.fechaRecepcion, consultado: new Date().toISOString(),
+  });
+  return { ok: true, ecf };
+}
+
 
 function json(data, status = 200, extra = {}) {
   return new Response(JSON.stringify(data), {

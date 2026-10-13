@@ -219,6 +219,9 @@ body.auth-mode #sidebar, body.auth-mode .topbar{display:none}
 .p-sign{display:flex;gap:60px;margin-top:60px;font-size:11px}
 .p-sign div{flex:1;border-top:1px solid #111;text-align:center;padding-top:4px}
 .p-foot{margin-top:24px;text-align:center;font-size:10px;color:#555}
+.p-ecf{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin-top:18px}
+.p-qr svg{width:28mm;height:28mm;display:block;padding:3mm;box-sizing:content-box}
+#print-area.ticket .p-qr svg{width:30mm;height:30mm;margin:4px auto}
 /* ticket */
 #print-area.ticket .p-doc{width:72mm;font-size:11px}
 .tk{text-align:center}
@@ -269,8 +272,17 @@ const NCF_TIPOS = {
   B14: { nombre: 'Régimen Especial', titulo: 'FACTURA DE RÉGIMEN ESPECIAL', requiereRNC: true },
   B15: { nombre: 'Gubernamental', titulo: 'FACTURA GUBERNAMENTAL', requiereRNC: true },
   B04: { nombre: 'Nota de Crédito', titulo: 'NOTA DE CRÉDITO' },
+  E31: { nombre: 'Crédito Fiscal Electrónica', titulo: 'FACTURA DE CRÉDITO FISCAL ELECTRÓNICA', requiereRNC: true, ecf: true },
+  E32: { nombre: 'Consumo Electrónica', titulo: 'FACTURA DE CONSUMO ELECTRÓNICA', ecf: true },
+  E34: { nombre: 'Nota de Crédito Electrónica', titulo: 'NOTA DE CRÉDITO ELECTRÓNICA', ecf: true },
+  E44: { nombre: 'Régimen Especial Electrónica', titulo: 'COMPROBANTE ELECTRÓNICO PARA REGÍMENES ESPECIALES', requiereRNC: true, ecf: true },
+  E45: { nombre: 'Gubernamental Electrónica', titulo: 'COMPROBANTE ELECTRÓNICO GUBERNAMENTAL', requiereRNC: true, ecf: true },
 };
-const TIPOS_FACTURA = ['B02', 'B01', 'B14', 'B15'];
+const TIPOS_FACTURA = ['B02', 'B01', 'B14', 'B15', 'E31', 'E32', 'E44', 'E45'];
+const esECF = t => /^E\d\d$/.test(t || '');
+const esNota = t => t === 'B04' || t === 'E34';
+const SIN_VENCE = ['E32', 'E34'];
+const LIMITE_RFCE = 250000;
 const TIPO_NONE = 'NONE';
 const nombreTipo = t => t === TIPO_NONE ? 'Sin comprobante' : (NCF_TIPOS[t] ? NCF_TIPOS[t].nombre : t);
 const METODOS = ['Efectivo', 'Tarjeta', 'Transferencia', 'Cheque', 'Otro'];
@@ -497,22 +509,22 @@ function calc(f) {
   return { bruto: r2(bruto), descuento: r2(desc), base, itbis: r2(itbis), propina, total: r2(base + itbis + propina), gravado: r2(gravado), exento: r2(exento) };
 }
 const pagado = f => r2((f.pagos || []).reduce((s, p) => s + num(p.monto), 0));
-const notasDe = f => DB.facturas.filter(n => n.tipo === 'B04' && n.facturaAfectadaId === f.id && n.estado !== 'anulada');
+const notasDe = f => DB.facturas.filter(n => esNota(n.tipo) && n.facturaAfectadaId === f.id && n.estado !== 'anulada');
 const totalNotas = f => r2(notasDe(f).reduce((s, n) => s + calc(n).total, 0));
 function saldo(f) {
-  if (f.estado === 'anulada' || f.tipo === 'B04') return 0;
+  if (f.estado === 'anulada' || esNota(f.tipo)) return 0;
   return Math.max(0, r2(calc(f).total - pagado(f) - totalNotas(f)));
 }
 function estado(f) {
   if (f.estado === 'anulada') return 'anulada';
-  if (f.tipo === 'B04') return 'nota';
+  if (esNota(f.tipo)) return 'nota';
   if (saldo(f) <= 0.004) return 'pagada';
   if (pagado(f) > 0 || notasDe(f).length) return 'parcial';
   if (f.vencimiento && f.vencimiento < today()) return 'vencida';
   return 'emitida';
 }
 const pill = st => `<span class="pill ${ESTADOS[st][1]}">${ESTADOS[st][0]}</span>`;
-const signo = f => f.tipo === 'B04' ? -1 : 1;
+const signo = f => esNota(f.tipo) ? -1 : 1;
 const vigente = f => f.estado !== 'anulada';
 
 function seqInfo(e, tipo) {
@@ -778,7 +790,7 @@ function viewDashboard(v) {
   <div class="page-head"><h1>Dashboard</h1><a class="btn primary" href="#/facturas/nueva">${icon('plus')} Nueva factura</a></div>
   ${alertas.map(a => `<div class="alert ${a[0]} mb">${esc(a[1])} <a href="#/empresas" style="text-decoration:underline;margin-left:auto">Ver secuencias</a></div>`).join('')}
   <div class="grid g4">
-    <div class="card kpi"><div class="l">Facturado del mes</div><div class="v">${money(facturadoMes)}</div><div class="d">${delMes.filter(f => f.tipo !== 'B04').length} facturas en ${MESES[+mes.slice(5) - 1]}</div></div>
+    <div class="card kpi"><div class="l">Facturado del mes</div><div class="v">${money(facturadoMes)}</div><div class="d">${delMes.filter(f => !esNota(f.tipo)).length} facturas en ${MESES[+mes.slice(5) - 1]}</div></div>
     <div class="card kpi"><div class="l">Cobrado del mes</div><div class="v">${money(cobradoMes)}</div><div class="d">Pagos recibidos</div></div>
     <div class="card kpi"><div class="l">Por cobrar</div><div class="v" style="color:${porCobrar > 0 ? 'var(--amber)' : 'inherit'}">${money(porCobrar)}</div><div class="d">${pendientes.length} pendientes · ${vencidas.length} vencidas</div></div>
     <div class="card kpi"><div class="l">ITBIS del mes</div><div class="v">${money(itbisMes)}</div><div class="d">Facturado (neto de notas)</div></div>
@@ -826,8 +838,8 @@ function rowFactura(f) {
     <td class="mono small hide-sm">${f.ncf ? esc(f.ncf) : '<span class="muted">—</span>'}</td>
     <td>${esc(c.nombre || 'Consumidor Final')}${c.rnc ? `<span class="sub">RNC: ${esc(fmtId(c.rnc))}</span>` : ''}</td>
     <td class="nowrap hide-sm">${fdate(f.fecha)}</td>
-    <td class="right nowrap">${f.tipo === 'B04' ? '-' : ''}${money(t.total)}</td>
-    <td>${pill(estado(f))}</td></tr>`;
+    <td class="right nowrap">${esNota(f.tipo) ? '-' : ''}${money(t.total)}</td>
+    <td>${pill(estado(f))}${esECF(f.tipo) ? `<span class="sub" style="${['Aceptado', 'Aceptado Condicional'].includes(f.ecf?.estado) ? '' : 'color:var(--red)'}">DGII: ${esc(f.ecf?.estado || 'sin enviar')}</span>` : ''}</td></tr>`;
 }
 function viewFacturas(v) {
   const e = emp();
@@ -837,7 +849,7 @@ function viewFacturas(v) {
   <div class="toolbar"><div class="search">${icon('search')}<input id="lf-q" placeholder="Buscar por número, NCF, cliente o RNC…" value="${esc(LF.q)}" oninput="A.lf('q',this.value)"></div></div>
   <div class="toolbar">
     <label class="chip-select"><span>Comprobante:</span><select onchange="A.lf('tipo',this.value)">
-      ${[['ventas', 'Facturas de venta'], ['', 'Todos'], ...TIPOS_FACTURA.map(t => [t, `${t} · ${nombreTipo(t)}`]), ['B04', 'B04 · Notas de crédito'], [TIPO_NONE, 'Sin comprobante']]
+      ${[['ventas', 'Facturas de venta'], ['', 'Todos'], ...TIPOS_FACTURA.map(t => [t, `${t} · ${nombreTipo(t)}`]), ['B04', 'B04 · Notas de crédito'], ['E34', 'E34 · Notas de crédito electrónicas'], [TIPO_NONE, 'Sin comprobante']]
         .map(([k, l]) => `<option value="${k}" ${LF.tipo === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <label class="chip-select"><span>Estado:</span><select onchange="A.lf('estado',this.value)">
       <option value="">Todas</option>${Object.entries(ESTADOS).filter(([k]) => k !== 'nota').map(([k, [l]]) => `<option value="${k}" ${LF.estado === k ? 'selected' : ''}>${l}</option>`).join('')}
@@ -856,7 +868,7 @@ A.lfMore = () => { LF.limit += 100; fillFacturas(); };
 function filtrarFacturas() {
   const q = LF.q.toLowerCase().trim(), qd = digits(q);
   return facturas().filter(f => {
-    if (LF.tipo === 'ventas' && f.tipo === 'B04') return false;
+    if (LF.tipo === 'ventas' && esNota(f.tipo)) return false;
     if (LF.tipo && LF.tipo !== 'ventas' && f.tipo !== LF.tipo) return false;
     if (LF.desde && f.fecha < LF.desde) return false;
     if (LF.hasta && f.fecha > LF.hasta) return false;
@@ -889,7 +901,10 @@ function viewFactura(v, id) {
   const e = emp(), t = calc(f), st = estado(f), c = f.cliente || {};
   const notas = notasDe(f), sal = saldo(f), pag = pagado(f);
   const afectada = f.facturaAfectadaId ? getF(f.facturaAfectadaId) : null;
-  const editable = f.estado !== 'anulada' && !(f.pagos || []).length && !notas.length;
+  const ecf = f.ecf || {};
+  const ecfValido = ['Aceptado', 'Aceptado Condicional'].includes(ecf.estado);
+  // Un e-CF ya enviado a la DGII no se edita: se corrige con nota de crédito.
+  const editable = f.estado !== 'anulada' && !(f.pagos || []).length && !notas.length && !(esECF(f.tipo) && ecf.estado);
   crumbs([e.nombre, '#/dashboard'], ['Facturas', '#/facturas'], [f.numero]);
   v.innerHTML = `
   <div class="page-head">
@@ -918,13 +933,14 @@ function viewFactura(v, id) {
       <dt>Comprobante</dt><dd>${f.tipo === TIPO_NONE ? 'Sin comprobante fiscal' : `${f.tipo} · ${nombreTipo(f.tipo)}`}</dd>
       ${f.ncf ? `<dt>NCF</dt><dd class="mono">${esc(f.ncf)}</dd><dt>Vence NCF</dt><dd>${f.ncfVence ? fdate(f.ncfVence) : '—'}</dd>` : ''}
       ${afectada ? `<dt>Afecta a</dt><dd><a href="#/facturas/${afectada.id}" style="text-decoration:underline">${esc(afectada.numero)}</a> <span class="mono small">${esc(afectada.ncf || '')}</span></dd>` : ''}
-      ${f.tipo !== 'B04' ? `<dt>Condición de pago</dt><dd>${f.condicion === 'credito' ? `Crédito ${f.diasCredito} días` : 'Contado'}</dd>` : ''}
+      ${!esNota(f.tipo) ? `<dt>Condición de pago</dt><dd>${f.condicion === 'credito' ? `Crédito ${f.diasCredito} días` : 'Contado'}</dd>` : ''}
       ${f.vencimiento ? `<dt>Vencimiento</dt><dd>${fdate(f.vencimiento)}</dd>` : ''}
       <dt>Estado de pago</dt><dd>${pill(st)}</dd>
       <dt>Creada</dt><dd class="small">${f.creada ? new Date(f.creada).toLocaleString('es-DO') : ''}</dd>
     </dl></div></div>
   </div>
 
+  ${esECF(f.tipo) ? tarjetaECF(f) : ''}
   <div class="card mt"><div class="card-h">Ítems</div>
     <div class="tbl-wrap"><table><thead><tr><th>Descripción</th><th class="right">Cant.</th><th class="right">Precio unit.</th><th class="right hide-sm">Desc.</th><th class="right">ITBIS</th><th class="right">Subtotal</th></tr></thead>
     <tbody>${f.items.map(it => {
@@ -941,14 +957,14 @@ function viewFactura(v, id) {
       <div class="row"><span class="muted">ITBIS</span><span>${money(t.itbis)}</span></div>
       ${t.propina ? `<div class="row"><span class="muted">Propina legal (10%)</span><span>${money(t.propina)}</span></div>` : ''}
       <div class="row big"><span>Total</span><span>${money(t.total)}</span></div>
-      ${f.tipo !== 'B04' && f.estado !== 'anulada' ? `
+      ${!esNota(f.tipo) && f.estado !== 'anulada' ? `
         ${notas.length ? `<div class="row"><span class="muted">Notas de crédito</span><span>-${money(totalNotas(f))}</span></div>` : ''}
         <div class="row"><span class="muted">Pagado</span><span>${money(pag)}</span></div>
         <div class="row ${sal > 0 ? 'due' : ''}"><span>Saldo pendiente</span><span>${money(sal)}</span></div>` : ''}
     </div>
   </div>
 
-  ${f.tipo !== 'B04' ? `<div class="card mt"><div class="card-h">Pagos registrados<span class="sp"></span>${sal > 0 ? `<button class="btn sm" onclick="A.registrarPago('${f.id}')">${icon('plus')} Agregar</button>` : ''}</div>
+  ${!esNota(f.tipo) ? `<div class="card mt"><div class="card-h">Pagos registrados<span class="sp"></span>${sal > 0 ? `<button class="btn sm" onclick="A.registrarPago('${f.id}')">${icon('plus')} Agregar</button>` : ''}</div>
     ${(f.pagos || []).length ? `<div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Método</th><th>Referencia</th><th class="right">Monto</th><th></th></tr></thead><tbody>
       ${f.pagos.map(p => `<tr><td>${fdate(p.fecha)}</td><td>${esc(p.metodo)}</td><td class="muted">${esc(p.referencia || '—')}</td><td class="right mono">${money(p.monto)}</td>
       <td class="right">${f.estado !== 'anulada' ? `<button class="icon-btn" title="Eliminar pago" onclick="A.borrarPago('${f.id}','${p.id}')">${icon('trash')}</button>` : ''}</td></tr>`).join('')}
@@ -965,8 +981,9 @@ function viewFactura(v, id) {
     <div class="card"><div class="card-h">Acciones</div><div class="card-b" style="display:flex;gap:8px;flex-wrap:wrap">
       ${editable ? `<a class="btn" href="#/facturas/${f.id}/editar">${icon('edit')} Editar</a>` : ''}
       <a class="btn" href="#/facturas/nueva?dup=${f.id}">${icon('copy')} Duplicar</a>
-      ${f.tipo !== 'B04' && f.ncf && f.estado !== 'anulada' ? `<a class="btn" href="#/facturas/nueva?nota=${f.id}">${icon('undo')} Nota de crédito</a>` : ''}
-      ${f.estado !== 'anulada' ? `<button class="btn danger" onclick="A.anular('${f.id}')">${icon('ban')} Anular</button>` : ''}
+      ${!esNota(f.tipo) && f.ncf && f.estado !== 'anulada' ? `<a class="btn" href="#/facturas/nueva?nota=${f.id}">${icon('undo')} Nota de crédito</a>` : ''}
+      ${f.estado !== 'anulada' && !ecfValido && !(esECF(f.tipo) && ecf.estado === 'En Proceso') ? `<button class="btn danger" onclick="A.anular('${f.id}')">${icon('ban')} Anular</button>` : ''}
+      ${ecfValido ? `<div class="muted small" style="width:100%">Un e-CF aceptado por la DGII no se anula: emite una nota de crédito electrónica (E34).</div>` : ''}
       ${!editable && f.estado !== 'anulada' ? `<div class="muted small" style="width:100%">Para editar, elimina primero los pagos${notas.length ? ' y notas de crédito' : ''}. Lo correcto fiscalmente es emitir una nota de crédito.</div>` : ''}
     </div></div>
   </div>`;
@@ -1019,6 +1036,144 @@ A.anular = id => {
 };
 
 /* =========================================================
+   FACTURACIÓN ELECTRÓNICA (e-CF) — la firma y el envío ocurren en el Worker (/api/ecf/*)
+   ========================================================= */
+const AMBIENTES_ECF = { testecf: 'Pre-certificación (TesteCF)', certecf: 'Certificación (CerteCF)', ecf: 'Producción' };
+const PILL_ECF = { 'Aceptado': 'green', 'Aceptado Condicional': 'green', 'Rechazado': 'red', 'En Proceso': 'amber', 'No encontrado': 'gray' };
+async function apiECF(ruta, body) {
+  const { data } = await sb.auth.getSession();
+  let r;
+  try {
+    r = await fetch('/api/ecf/' + ruta, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + (data.session?.access_token || '') }, body: JSON.stringify(body) });
+  } catch (e) { throw new Error('Sin conexión con el servidor.'); }
+  if (!(r.headers.get('content-type') || '').includes('json')) throw new Error('La facturación electrónica solo funciona en la app publicada.');
+  const d = await r.json();
+  if (!d.ok) throw new Error(d.error || 'Error desconocido');
+  return d;
+}
+function cargarScript(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) return res();
+    const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar ' + src));
+    document.head.appendChild(s);
+  });
+}
+function tarjetaECF(f) {
+  const x = f.ecf || {};
+  const puedeEnviar = f.estado !== 'anulada' && (!x.estado || (x.estado === 'Rechazado' && !x.secuenciaUtilizada) || x.error);
+  return `<div class="card mt"><div class="card-h">Facturación electrónica · DGII<span class="sp"></span>
+      ${x.estado ? `<span class="pill ${PILL_ECF[x.estado] || 'gray'}">${esc(x.estado)}</span>` : '<span class="pill gray">Sin enviar</span>'}</div>
+    <div class="card-b">
+      ${x.error ? `<div class="alert err mb">${esc(x.error)}</div>` : ''}
+      ${x.estado === 'Rechazado' ? `<div class="alert err mb">La DGII rechazó este comprobante. ${x.secuenciaUtilizada ? 'El e-NCF quedó utilizado: anula este documento y emite uno nuevo.' : 'Puedes corregir los datos y reenviarlo con el mismo e-NCF.'}</div>` : ''}
+      ${(x.mensajes || []).length ? `<div class="alert ${x.estado === 'Rechazado' ? 'err' : 'warn'} mb"><div>${x.mensajes.map(m => '• ' + esc(m)).join('<br>')}</div></div>` : ''}
+      <dl class="kv" style="margin:0">
+        <dt>e-NCF</dt><dd class="mono">${esc(f.ncf)}</dd>
+        ${x.ambiente ? `<dt>Ambiente</dt><dd>${esc(AMBIENTES_ECF[x.ambiente] || x.ambiente)}</dd>` : ''}
+        ${x.rfce ? `<dt>Envío</dt><dd>Resumen de factura de consumo (RFCE)</dd>` : ''}
+        ${x.trackId ? `<dt>TrackId</dt><dd class="mono small">${esc(x.trackId)}</dd>` : ''}
+        ${x.codigoSeguridad ? `<dt>Código de seguridad</dt><dd class="mono">${esc(x.codigoSeguridad)}</dd>` : ''}
+        ${x.fechaFirma ? `<dt>Fecha de firma</dt><dd>${esc(x.fechaFirma)}</dd>` : ''}
+      </dl>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+        ${puedeEnviar ? `<button class="btn primary" onclick="A.enviarECF('${f.id}')">${icon('receipt')} ${x.estado ? 'Reenviar' : 'Enviar'} a la DGII</button>` : ''}
+        ${x.trackId && x.estado !== 'Aceptado' ? `<button class="btn" onclick="A.consultarECF('${f.id}')">${icon('search')} Consultar estado</button>` : ''}
+        ${x.xml ? `<button class="btn" onclick="A.descargarXML('${f.id}')">${icon('down')} XML firmado</button>` : ''}
+        ${x.qr ? `<a class="btn" href="${esc(x.qr)}" target="_blank" rel="noopener">Ver en DGII</a>` : ''}
+      </div>
+    </div></div>`;
+}
+A.enviarECF = async id => {
+  busy(true, 'Firmando y enviando a la DGII…');
+  try {
+    const { ecf } = await apiECF('emitir', { facturaId: id });
+    const f = getF(id); if (f) f.ecf = ecf;
+    toast(`DGII: ${ecf.estado}`, ['Aceptado', 'Aceptado Condicional'].includes(ecf.estado) ? 'ok' : ecf.estado === 'Rechazado' ? 'error' : '');
+  } catch (err) {
+    toast(errMsg(err), 'error');
+    try { await mutateFactura(id, d => { d.ecf = { ...(d.ecf || {}), error: errMsg(err), errorEn: new Date().toISOString() }; }); } catch (e) { }
+  } finally { busy(false); }
+  try { const row = chk(await sb.from('facturas').select('*').eq('id', id).single()); putCache('facturas', fromFacturaRow(row)); } catch (e) { }
+  if (parseHash().parts[1] === id) route(true);
+};
+A.consultarECF = async id => {
+  busy(true, 'Consultando a la DGII…');
+  try {
+    const { ecf } = await apiECF('consultar', { facturaId: id });
+    const f = getF(id); if (f) f.ecf = { ...(f.ecf || {}), ...ecf };
+    toast(`DGII: ${ecf.estado}`);
+  } catch (err) { toast(errMsg(err), 'error'); }
+  finally { busy(false); }
+  if (parseHash().parts[1] === id) route(true);
+};
+A.descargarXML = id => {
+  const f = getF(id), x = f.ecf || {};
+  const rnc = digits(emp().rnc);
+  download(`${rnc}${f.ncf}.xml`, x.xml, 'text/xml');
+  if (x.xmlRfce) setTimeout(() => download(`${rnc}${f.ncf}-RFCE.xml`, x.xmlRfce, 'text/xml'), 400);
+};
+
+// Configuración por empresa: ambiente y certificado digital (.p12/.pfx)
+A.configECF = async eid => {
+  const e = DB.empresas.find(x => x.id === eid);
+  let cfg = null;
+  try { cfg = (chk(await sb.from('ecf_config').select('ambiente,cert_info,updated_at').eq('empresa_id', eid)))[0] || null; }
+  catch (err) { return toast(errMsg(err), 'error'); }
+  const info = cfg?.cert_info || {};
+  const vencido = info.validTo && info.validTo < new Date().toISOString();
+  const seqE = Object.keys(NCF_TIPOS).filter(t => esECF(t) && e.secuencias?.[t]?.activo);
+  modal(`Facturación electrónica · ${esc(e.nombre)}`, `
+    <div class="alert info mb">Primero solicita en la Oficina Virtual de la DGII ser emisor electrónico. En el ambiente de pre-certificación la DGII habilita secuencias de prueba e-NCF del 1 al 10,000,000 por tipo.</div>
+    <div class="section-title" style="margin-top:0">1. Ambiente</div>
+    <div class="field"><select class="in" name="ambiente">${Object.entries(AMBIENTES_ECF).map(([k, l]) => `<option value="${k}" ${(cfg?.ambiente || 'testecf') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <span class="hint">Usa Pre-certificación para pruebas. Producción solo cuando la DGII te autorice.</span></div>
+    <div class="section-title">2. Certificado digital para procesos tributarios</div>
+    ${cfg?.cert_info?.cn ? `<div class="alert ${vencido ? 'err' : 'info'} mb"><div><b>${esc(info.cn)}</b>${info.sn ? ` · SN ${esc(info.sn)}` : ''}<br>Emitido por ${esc(info.emisor || '—')} · vence ${esc((info.validTo || '').slice(0, 10))}${vencido ? ' · <b>VENCIDO</b>' : ''}</div></div>` : '<div class="alert warn mb">No hay certificado cargado.</div>'}
+    <div class="fgrid">
+      <div class="field"><label>Archivo .p12 / .pfx ${cfg?.cert_info?.cn ? '(para reemplazar)' : ''}</label><input type="file" name="p12" accept=".p12,.pfx,application/x-pkcs12"></div>
+      <div class="field"><label>Contraseña del certificado</label><input class="in" type="password" name="pass" autocomplete="off"><span class="hint">Se usa solo en este navegador para abrir el archivo; no se guarda.</span></div>
+    </div>
+    <div class="section-title">3. Secuencias e-NCF</div>
+    <p class="small" style="margin:0">${seqE.length ? 'Activas: ' + seqE.map(t => `<span class="tag">${t}</span>`).join(' ') : 'No hay secuencias e-NCF activas.'} Configúralas en <b>Empresas → Editar → Secuencias</b> (E31, E32, E34, E44, E45).</p>`, {
+    wide: true, okText: 'Guardar', onOk: async form => {
+      const ambiente = fv(form, 'ambiente');
+      const file = form.elements.p12.files[0];
+      const body = { empresaId: eid, ambiente };
+      if (ambiente === 'ecf' && cfg?.ambiente !== 'ecf' && !confirm('¿Pasar a PRODUCCIÓN? Los comprobantes enviados tendrán validez fiscal.')) return false;
+      if (file) {
+        const pass = form.elements.pass.value;
+        await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js');
+        let p12;
+        try {
+          const bin = forge.util.binary.raw.encode(new Uint8Array(await file.arrayBuffer()));
+          p12 = forge.pkcs12.pkcs12FromAsn1(forge.asn1.fromDer(bin), false, pass);
+        } catch (err) { toast('No se pudo abrir el certificado: contraseña incorrecta o archivo no válido.', 'error'); return false; }
+        const keyBag = (p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag })[forge.pki.oids.pkcs8ShroudedKeyBag] || [])[0]
+          || (p12.getBags({ bagType: forge.pki.oids.keyBag })[forge.pki.oids.keyBag] || [])[0];
+        const certs = (p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] || []).map(b => b.cert).filter(Boolean);
+        if (!keyBag || !certs.length) { toast('El archivo no contiene una clave privada y un certificado.', 'error'); return false; }
+        const key = keyBag.key;
+        const cert = certs.find(c => c.publicKey.n && c.publicKey.n.equals(key.n));
+        if (!cert) { toast('El certificado no corresponde a la clave privada del archivo.', 'error'); return false; }
+        const attr = n => (cert.subject.getField(n) || cert.subject.getField({ name: n }) || {}).value || '';
+        const certInfo = {
+          cn: attr('CN'), sn: attr('serialNumber'), emisor: (cert.issuer.getField('CN') || cert.issuer.getField('O') || {}).value || '',
+          validFrom: cert.validity.notBefore.toISOString(), validTo: cert.validity.notAfter.toISOString(), serial: cert.serialNumber,
+        };
+        if (cert.validity.notAfter < new Date()) { toast('El certificado está vencido.', 'error'); return false; }
+        Object.assign(body, {
+          pkcs8: forge.util.encode64(forge.asn1.toDer(forge.pki.wrapRsaPrivateKey(forge.pki.privateKeyToAsn1(key))).getBytes()),
+          cert: forge.util.encode64(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes()),
+          info: certInfo,
+        });
+      }
+      await apiECF('certificado', body);
+      toast(file ? 'Certificado guardado' : 'Configuración guardada', 'ok');
+    }
+  });
+};
+
+/* =========================================================
    FACTURA — formulario
    ========================================================= */
 let draft = null;
@@ -1036,10 +1191,10 @@ function viewFacturaForm(v, opts) {
     };
     if (opts.notaDe) {
       const o = getF(opts.notaDe);
-      if (o) Object.assign(draft, { tipo: 'B04', clienteId: o.clienteId, facturaAfectadaId: o.id, items: clone(o.items), propina: o.propina, notas: '', condicion: 'contado' });
+      if (o) Object.assign(draft, { tipo: esECF(o.tipo) || seqInfo(e, 'E34') ? 'E34' : 'B04', clienteId: o.clienteId, facturaAfectadaId: o.id, items: clone(o.items), propina: o.propina, notas: '', condicion: 'contado' });
     } else if (opts.dupDe) {
       const o = getF(opts.dupDe);
-      if (o) Object.assign(draft, { tipo: o.tipo === 'B04' ? 'B02' : o.tipo, clienteId: o.clienteId, items: clone(o.items), propina: o.propina, notas: o.notas, condicion: o.condicion, diasCredito: o.diasCredito || 30 });
+      if (o) Object.assign(draft, { tipo: esNota(o.tipo) ? 'B02' : o.tipo, clienteId: o.clienteId, items: clone(o.items), propina: o.propina, notas: o.notas, condicion: o.condicion, diasCredito: o.diasCredito || 30 });
     }
     if (pendingCliente && getC(pendingCliente)) {
       draft.clienteId = pendingCliente;
@@ -1051,12 +1206,13 @@ function viewFacturaForm(v, opts) {
   renderForm(v);
 }
 function renderForm(v = $('#view')) {
-  const e = emp(), d = draft, isNota = d.tipo === 'B04';
+  const e = emp(), d = draft, isNota = esNota(d.tipo);
   const titulo = d._edit ? `Editar ${d.numero}` : isNota ? 'Nueva nota de crédito' : 'Nueva factura';
   crumbs([e.nombre, '#/dashboard'], ['Facturas', '#/facturas'], [titulo]);
-  const tiposDisp = isNota ? ['B04'] : [...TIPOS_FACTURA, TIPO_NONE];
+  // Los tipos electrónicos solo aparecen si la empresa tiene su secuencia e-NCF activa.
+  const tiposDisp = isNota ? [d.tipo] : [...TIPOS_FACTURA.filter(t => !esECF(t) || seqInfo(e, t) || t === d.tipo), TIPO_NONE];
   const cl = clientes();
-  const facturasAfectables = facturas().filter(f => f.tipo !== 'B04' && f.ncf && f.estado !== 'anulada').sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const facturasAfectables = facturas().filter(f => !esNota(f.tipo) && f.ncf && f.estado !== 'anulada').sort((a, b) => b.fecha.localeCompare(a.fecha));
   const seq = d.tipo !== TIPO_NONE ? seqInfo(e, d.tipo) : null;
   let seqMsg = '';
   if (!d._edit && d.tipo !== TIPO_NONE) {
@@ -1162,7 +1318,7 @@ A.pickProd = (i, val) => {
   const v = String(val).trim().toLowerCase();
   const p = productos().find(p => p.descripcion.toLowerCase() === v || (p.sku && p.sku.toLowerCase() === v));
   if (!p) return;
-  Object.assign(draft.items[i], { productoId: p.id, sku: p.sku || '', descripcion: p.descripcion, precio: num(p.precio), itbis: num(p.itbis) });
+  Object.assign(draft.items[i], { productoId: p.id, sku: p.sku || '', descripcion: p.descripcion, precio: num(p.precio), itbis: num(p.itbis), tipo: p.tipo || 'bien' });
   $('#items-body').innerHTML = draft.items.map((it, j) => itemRow(it, j)).join('');
   A.refreshTotals();
 };
@@ -1186,7 +1342,7 @@ A.notaAfecta = id => {
 A.refreshTotals = () => {
   const t = calc(draft), el = $('#form-totals'); if (!el) return;
   let extra = '';
-  if (draft.tipo === 'B04' && draft.facturaAfectadaId) {
+  if (esNota(draft.tipo) && draft.facturaAfectadaId) {
     const o = getF(draft.facturaAfectadaId);
     if (o) extra = `<div class="row small"><span class="muted">Total factura afectada</span><span>${money(calc(o).total)}</span></div>
       <div class="row small"><span class="muted">Saldo pendiente actual</span><span>${money(saldo(o))}</span></div>`;
@@ -1201,7 +1357,7 @@ A.refreshTotals = () => {
 A.guardarFactura = async () => {
   const e = emp(), d = draft;
   const items = d.items.filter(it => String(it.descripcion).trim() && num(it.cantidad) > 0)
-    .map(it => ({ productoId: it.productoId || '', sku: it.sku || '', descripcion: String(it.descripcion).trim(), cantidad: num(it.cantidad), precio: r2(num(it.precio)), descuento: Math.min(100, Math.max(0, num(it.descuento))), itbis: num(it.itbis) }));
+    .map(it => ({ productoId: it.productoId || '', sku: it.sku || '', descripcion: String(it.descripcion).trim(), cantidad: r2(num(it.cantidad)), precio: r2(num(it.precio)), descuento: Math.min(100, Math.max(0, num(it.descuento))), itbis: num(it.itbis), tipo: it.tipo || (getP(it.productoId)?.tipo) || 'bien' }));
   if (!items.length) return toast('Agrega al menos un ítem con descripción y cantidad.', 'error');
   if (items.some(it => it.precio < 0)) return toast('Los precios no pueden ser negativos.', 'error');
   const cli = d.clienteId ? getC(d.clienteId) : null;
@@ -1209,7 +1365,12 @@ A.guardarFactura = async () => {
     return toast(`El comprobante ${d.tipo} requiere un cliente con RNC (9 dígitos) o cédula (11 dígitos).`, 'error');
   const total = calc({ items, propina: d.propina }).total;
   if (total <= 0) return toast('El total debe ser mayor que cero.', 'error');
-  if (d.tipo === 'B04') {
+  if (d.tipo === 'E32' && total >= LIMITE_RFCE && !(cli && validId(cli.rnc)))
+    return toast('Las facturas de consumo electrónicas de RD$250,000 o más requieren un cliente con RNC o cédula.', 'error');
+  if (d.tipo === 'E44' && items.some(it => num(it.itbis) !== 0))
+    return toast('El e-CF de Régimen Especial (E44) solo admite ítems exentos de ITBIS.', 'error');
+  if (esECF(d.tipo) && !emp().direccion) return toast('Para emitir e-CF, completa la dirección de la empresa en Empresas → Editar.', 'error');
+  if (esNota(d.tipo)) {
     const o = getF(d.facturaAfectadaId);
     if (!o) return toast('Selecciona la factura que afecta la nota de crédito.', 'error');
     const otras = notasDe(o).filter(n => n.id !== d.id).reduce((s, n) => s + calc(n).total, 0);
@@ -1221,11 +1382,11 @@ A.guardarFactura = async () => {
     clienteId: cli ? cli.id : '',
     cliente: cli ? { nombre: cli.nombre, rnc: cli.rnc, direccion: cli.direccion, telefono: cli.telefono, email: cli.email } : { nombre: 'Consumidor Final' },
     fecha: d.fecha || today(),
-    condicion: d.tipo === 'B04' ? 'contado' : d.condicion,
+    condicion: esNota(d.tipo) ? 'contado' : d.condicion,
     diasCredito: d.condicion === 'credito' ? num(d.diasCredito) : 0,
-    vencimiento: d.tipo !== 'B04' && d.condicion === 'credito' ? addDays(d.fecha || today(), d.diasCredito) : '',
+    vencimiento: !esNota(d.tipo) && d.condicion === 'credito' ? addDays(d.fecha || today(), d.diasCredito) : '',
     items, propina: !!d.propina, notas: d.notas || '',
-    facturaAfectadaId: d.tipo === 'B04' ? d.facturaAfectadaId : '',
+    facturaAfectadaId: esNota(d.tipo) ? d.facturaAfectadaId : '',
   };
   A._saving = true; busy(true, d._edit ? 'Guardando…' : 'Emitiendo comprobante…');
   try {
@@ -1237,7 +1398,7 @@ A.guardarFactura = async () => {
       });
     } else {
       const data = { ...campos, creada: new Date().toISOString(), creadaPor: SESSION.user.email, pagos: [], estado: 'emitida' };
-      if (d.pagarAhora && d.tipo !== 'B04') data.pagos.push({ id: uid(), fecha: data.fecha, metodo: d.metodoPago || 'Efectivo', monto: calc(data).total, referencia: '', por: SESSION.user.email });
+      if (d.pagarAhora && !esNota(d.tipo)) data.pagos.push({ id: uid(), fecha: data.fecha, metodo: d.metodoPago || 'Efectivo', monto: calc(data).total, referencia: '', por: SESSION.user.email });
       const row = chk(await sb.rpc('emitir_factura', { p_empresa: e.id, p_tipo: d.tipo, p_data: data }));
       f = fromFacturaRow(row);
       putCache('facturas', f);
@@ -1246,6 +1407,7 @@ A.guardarFactura = async () => {
     toast(d._edit ? 'Cambios guardados' : `${f.numero} emitida${f.ncf ? ' · NCF ' + f.ncf : ''}`, 'ok');
     draft = null;
     location.hash = '#/facturas/' + f.id;
+    if (!d._edit && esECF(f.tipo)) setTimeout(() => A.enviarECF(f.id), 60);
   } catch (err) { console.error(err); toast(errMsg(err), 'error'); }
   finally { A._saving = false; busy(false); }
 };
@@ -1272,7 +1434,7 @@ function fillClientes() {
   const fs = facturas();
   const list = clientes().filter(c => !q || [c.nombre, c.nombreComercial, c.telefono, c.email].join(' ').toLowerCase().includes(q) || (qd.length >= 3 && digits(c.rnc).includes(qd)));
   $('#lc-body').innerHTML = list.length ? list.map(c => {
-    const mis = fs.filter(f => f.clienteId === c.id && f.tipo !== 'B04' && vigente(f));
+    const mis = fs.filter(f => f.clienteId === c.id && !esNota(f.tipo) && vigente(f));
     const bal = r2(mis.reduce((s, f) => s + saldo(f), 0));
     return `<tr class="click" onclick="A.estadoCuenta('${c.id}')"><td style="font-weight:500">${esc(c.nombre)}${c.nombreComercial && c.nombreComercial !== c.nombre ? `<span class="sub">${esc(c.nombreComercial)}</span>` : ''}${c.email ? `<span class="sub">${esc(c.email)}</span>` : ''}${c.estadoDGII && c.estadoDGII.toUpperCase() !== 'ACTIVO' ? `<span class="pill red" style="margin-top:3px">DGII: ${esc(c.estadoDGII)}</span>` : ''}</td>
       <td class="mono small">${c.rnc ? esc(fmtId(c.rnc)) : '<span class="muted">—</span>'}</td><td class="hide-sm">${esc(c.telefono || '')}</td>
@@ -1377,7 +1539,7 @@ A.borrarCliente = id => {
 A.estadoCuenta = id => {
   const c = getC(id);
   const fs = facturas().filter(f => f.clienteId === id).sort((a, b) => b.fecha.localeCompare(a.fecha));
-  const bal = r2(fs.filter(f => f.tipo !== 'B04').reduce((s, f) => s + saldo(f), 0));
+  const bal = r2(fs.filter(f => !esNota(f.tipo)).reduce((s, f) => s + saldo(f), 0));
   const tot = r2(fs.filter(vigente).reduce((s, f) => s + signo(f) * calc(f).total, 0));
   modal(`Estado de cuenta · ${esc(c.nombre)}`, `
     <div class="grid g3 mb">
@@ -1387,7 +1549,7 @@ A.estadoCuenta = id => {
     </div>
     ${fs.length ? `<div class="card tbl-wrap"><table><thead><tr><th>Número</th><th>NCF</th><th>Fecha</th><th class="right">Total</th><th class="right">Saldo</th><th>Estado</th></tr></thead><tbody>
       ${fs.map(f => `<tr class="click" onclick="A.closeModal();location.hash='#/facturas/${f.id}'"><td class="mono">${esc(f.numero)}</td><td class="mono small">${esc(f.ncf || '—')}</td><td class="nowrap">${fdate(f.fecha)}</td>
-      <td class="right">${f.tipo === 'B04' ? '-' : ''}${money(calc(f).total)}</td><td class="right">${money(saldo(f))}</td><td>${pill(estado(f))}</td></tr>`).join('')}
+      <td class="right">${esNota(f.tipo) ? '-' : ''}${money(calc(f).total)}</td><td class="right">${money(saldo(f))}</td><td>${pill(estado(f))}</td></tr>`).join('')}
     </tbody></table></div>` : '<div class="empty">Este cliente no tiene facturas.</div>'}
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
       <button type="button" class="btn" onclick="A.closeModal();A.editarCliente('${c.id}')">${icon('edit')} Editar cliente</button>
@@ -1502,7 +1664,7 @@ function repResumen(el) {
   const cobrado = r2(facturas().filter(vigente).reduce((s, f) => s + (f.pagos || []).filter(p => p.fecha >= LR.desde && p.fecha <= LR.hasta).reduce((a, p) => a + num(p.monto), 0), 0));
   const porMetodo = {};
   facturas().filter(vigente).forEach(f => (f.pagos || []).filter(p => p.fecha >= LR.desde && p.fecha <= LR.hasta).forEach(p => porMetodo[p.metodo] = (porMetodo[p.metodo] || 0) + num(p.monto)));
-  const orden = ['B01', 'B02', 'B14', 'B15', TIPO_NONE, 'B04'].filter(t => grupos[t]);
+  const orden = ['B01', 'B02', 'B14', 'B15', 'E31', 'E32', 'E44', 'E45', TIPO_NONE, 'B04', 'E34'].filter(t => grupos[t]);
   el.innerHTML = `
   <div class="grid g4 mb">
     <div class="card kpi"><div class="l">Ventas netas (sin ITBIS)</div><div class="v">${money(tot.base)}</div></div>
@@ -1532,7 +1694,7 @@ function rows607() {
       const k = p.metodo === 'Efectivo' ? 'Efectivo' : p.metodo === 'Tarjeta' ? 'Tarjeta' : (p.metodo === 'Cheque' || p.metodo === 'Transferencia') ? 'Cheque/Transferencia' : 'Otro';
       pm[k] += num(p.monto);
     });
-    const credito = f.tipo === 'B04' ? 0 : Math.max(0, r2(t.total - pagado(f)));
+    const credito = esNota(f.tipo) ? 0 : Math.max(0, r2(t.total - pagado(f)));
     const afect = f.facturaAfectadaId ? getF(f.facturaAfectadaId) : null;
     return { f, rnc, tipoId: rnc.length === 9 ? '1' : rnc.length === 11 ? '2' : '', ncfMod: afect?.ncf || '', t, pm, credito };
   });
@@ -1627,6 +1789,7 @@ function viewEmpresas(v) {
         ${e.id !== DB.activeId ? `<button class="btn sm primary" onclick="A.cambiarEmpresa('${e.id}')">Usar esta empresa</button>` : ''}
         ${admin ? `<button class="btn sm" onclick="A.editarEmpresa('${e.id}')">${icon('edit')} Editar</button>` : ''}
         <button class="btn sm" onclick="A.equipo('${e.id}')">${icon('users')} Equipo</button>
+        ${admin ? `<button class="btn sm" onclick="A.configECF('${e.id}')">${icon('receipt')} e-CF</button>` : ''}
         ${e.rol === 'dueno' ? `<button class="btn sm danger" onclick="A.borrarEmpresa('${e.id}')">${icon('trash')}</button>` : ''}
       </div></div>`;
   }).join('')}</div>` : `<div class="card"><div class="empty">No hay empresas. Crea la primera para empezar a facturar.</div></div>`}`;
@@ -1687,7 +1850,7 @@ A.editarEmpresa = id => {
         for (const t of Object.keys(NCF_TIPOS)) {
           const s = { activo: fv(form, `s_${t}_activo`), desde: num(fv(form, `s_${t}_desde`)) || 1, hasta: num(fv(form, `s_${t}_hasta`)) || '', actual: num(fv(form, `s_${t}_actual`)), vence: fv(form, `s_${t}_vence`) };
           if (s.activo && s.hasta && s.hasta < s.desde) { toast(`Secuencia ${t}: "hasta" debe ser mayor que "desde".`, 'error'); return false; }
-          if (s.activo && !s.vence) { toast(`Secuencia ${t}: indica la fecha de vencimiento.`, 'error'); return false; }
+          if (s.activo && !s.vence && !SIN_VENCE.includes(t)) { toast(`Secuencia ${t}: indica la fecha de vencimiento.`, 'error'); return false; }
           secuencias[t] = s;
         }
         const data = {
@@ -1876,8 +2039,26 @@ async function importarDatos(src) {
 /* =========================================================
    IMPRESIÓN
    ========================================================= */
-A.imprimir = (id, ticket) => {
+// Código QR (versión 8 como pide la DGII; si el contenido no cabe, versión automática)
+function qrSVG(texto) {
+  if (typeof qrcode === 'undefined' || !texto) return '';
+  for (const version of [8, 0]) {
+    try { const qr = qrcode(version, 'L'); qr.addData(texto); qr.make(); return qr.createSvgTag({ cellSize: 2, margin: 0, scalable: true }); } catch (e) { }
+  }
+  return '';
+}
+function bloqueECF(f, ticket) {
+  const x = f.ecf || {};
+  if (!esECF(f.tipo) || !x.codigoSeguridad) return '';
+  return `<div class="${ticket ? 'tk' : 'p-ecf'}">
+    <div class="p-qr">${qrSVG(x.qr)}</div>
+    <div class="small">Código de Seguridad: <b>${esc(x.codigoSeguridad)}</b><br>Fecha de Firma Digital: ${esc(x.fechaFirma || '')}</div>
+  </div>`;
+}
+A.imprimir = async (id, ticket) => {
   const f = getF(id);
+  if (esECF(f.tipo) && f.ecf?.qr) { try { await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'); } catch (e) { toast('No se pudo cargar el generador de QR.', 'error'); } }
+  if (esECF(f.tipo) && !f.ecf?.codigoSeguridad) toast('Este e-CF aún no se ha firmado: la impresión no tendrá código QR ni código de seguridad.', 'error');
   const pa = $('#print-area');
   pa.className = ticket ? 'ticket' : 'carta';
   pa.innerHTML = ticket ? ticketHTML(f) : cartaHTML(f);
@@ -1902,10 +2083,11 @@ function cartaHTML(f) {
       ${e.direccion ? esc(e.direccion) + '<br>' : ''}${[e.telefono, e.email, e.web].filter(Boolean).map(esc).join(' · ')}</div></div></div>
     <div class="p-title"><h1>${tituloDoc(f)}</h1><table>
       <tr><td>Número:</td><td><b>${esc(f.numero)}</b></td></tr>
-      ${f.ncf ? `<tr><td>NCF:</td><td><b>${esc(f.ncf)}</b></td></tr><tr><td>Válido hasta:</td><td>${fdate(f.ncfVence)}</td></tr>` : ''}
-      ${afect ? `<tr><td>NCF modificado:</td><td><b>${esc(afect.ncf)}</b></td></tr>` : ''}
+      ${f.ncf ? `<tr><td>${esECF(f.tipo) ? 'e-NCF' : 'NCF'}:</td><td><b>${esc(f.ncf)}</b></td></tr>${f.ncfVence ? `<tr><td>${esECF(f.tipo) ? 'Fecha vencimiento' : 'Válido hasta'}:</td><td>${fdate(f.ncfVence)}</td></tr>` : ''}` : ''}
+      ${afect ? `<tr><td>${esECF(f.tipo) ? 'e-NCF modificado' : 'NCF modificado'}:</td><td><b>${esc(afect.ncf)}</b></td></tr>` : ''}
+      ${f.tipo === 'E34' && afect ? `<tr><td>Código modificación:</td><td>${Math.abs(calc(afect).total - t.total) < 0.01 ? 'Anula el NCF modificado' : 'Corrige montos del NCF modificado'}</td></tr>` : ''}
       <tr><td>Fecha:</td><td>${fdate(f.fecha)}</td></tr>
-      ${f.tipo !== 'B04' ? `<tr><td>Condición:</td><td>${f.condicion === 'credito' ? `Crédito ${f.diasCredito} días` : 'Contado'}</td></tr>` : ''}
+      ${!esNota(f.tipo) ? `<tr><td>Condición:</td><td>${f.condicion === 'credito' ? `Crédito ${f.diasCredito} días` : 'Contado'}</td></tr>` : ''}
       ${f.vencimiento ? `<tr><td>Vence:</td><td>${fdate(f.vencimiento)}</td></tr>` : ''}
     </table></div>
   </div>
@@ -1926,9 +2108,10 @@ function cartaHTML(f) {
     <div><span>ITBIS</span><span>${money(t.itbis)}</span></div>
     ${t.propina ? `<div><span>Propina legal 10%</span><span>${money(t.propina)}</span></div>` : ''}
     <div class="t"><span>TOTAL</span><span>${money(t.total)}</span></div>
-    ${f.tipo !== 'B04' && f.estado !== 'anulada' && f.condicion === 'credito' ? `<div><span>Pagado</span><span>${money(pagado(f) + totalNotas(f))}</span></div><div><b>Balance</b><b>${money(sal)}</b></div>` : ''}
+    ${!esNota(f.tipo) && f.estado !== 'anulada' && f.condicion === 'credito' ? `<div><span>Pagado</span><span>${money(pagado(f) + totalNotas(f))}</span></div><div><b>Balance</b><b>${money(sal)}</b></div>` : ''}
   </div>
   ${f.notas ? `<div class="p-notes">${esc(f.notas)}</div>` : ''}
+  ${bloqueECF(f, false)}
   <div class="p-sign"><div>Despachado por</div><div>Recibido conforme</div></div>
   <div class="p-foot">${esc(e.nombre)} · RNC ${esc(fmtId(e.rnc))}</div>
   </div>`;
@@ -1959,6 +2142,7 @@ function ticketHTML(f) {
   ${(f.pagos || []).map(p => `<div class="tk-row"><span>${esc(p.metodo)}</span><span>${money(p.monto)}</span></div>`).join('')}
   <div class="tk-line"></div>
   ${f.notas ? `<div class="tk" style="white-space:pre-wrap">${esc(f.notas)}</div>` : ''}
+  ${bloqueECF(f, true)}
   <div class="tk">¡Gracias por su compra!</div></div>`;
 }
 
