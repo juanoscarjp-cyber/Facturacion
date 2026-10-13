@@ -374,10 +374,13 @@ async function leerRespuesta(r) {
     return { raw: `HTTP ${r.status}${limpio ? ' · ' + limpio.slice(0, 300) : ''}` };
   }
 }
-function multipart(xml, fileName) {
-  const fd = new FormData();
-  fd.append('xml', new Blob([xml], { type: 'text/xml' }), fileName);
-  return fd;
+// multipart/form-data armado a mano (cuerpo de tamaño fijo, sin chunked), campo "xml".
+function multipart(xml, fileName, headers) {
+  const boundary = '----FacturacionRD' + Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('');
+  const body = enc.encode(
+    `--${boundary}\r\nContent-Disposition: form-data; name="xml"; filename="${fileName}"\r\nContent-Type: text/xml\r\n\r\n`
+    + xml + `\r\n--${boundary}--\r\n`);
+  return { method: 'POST', headers: { ...headers, 'content-type': `multipart/form-data; boundary=${boundary}` }, body };
 }
 
 const tokens = new Map(); // caché por ambiente + RNC del certificado
@@ -391,7 +394,7 @@ export async function obtenerToken(ambiente, privateKey, certB64, cacheKey = '')
   const semilla = parseXml(await r1.text());
   if (!semilla) throw new Error('DGII: respuesta de semilla no válida');
   const { xml } = await signTree(semilla, privateKey, certB64);
-  const r2_ = await fetch(base + '/validarsemilla', { method: 'POST', headers: { 'user-agent': UA, accept: 'application/json' }, body: multipart(xml, 'semilla.xml') });
+  const r2_ = await fetch(base + '/validarsemilla', multipart(xml, 'semilla.xml', { 'user-agent': UA, accept: 'application/json' }));
   const d = await leerRespuesta(r2_);
   if (!r2_.ok || !d.token) throw new Error('DGII autenticación: ' + (d.mensaje || d.message || d.error || d.raw || `HTTP ${r2_.status}`));
   tokens.set(key, { token: d.token, exp: Date.parse(d.expira) || Date.now() + 50 * 60e3 });
@@ -399,18 +402,14 @@ export async function obtenerToken(ambiente, privateKey, certB64, cacheKey = '')
 }
 
 export async function enviarECF(ambiente, token, xml, fileName) {
-  const r = await fetch(AMBIENTES[ambiente].ecf + '/recepcion/api/facturaselectronicas', {
-    method: 'POST', headers: { 'user-agent': UA, accept: 'application/json', authorization: 'Bearer ' + token }, body: multipart(xml, fileName),
-  });
+  const r = await fetch(AMBIENTES[ambiente].ecf + '/recepcion/api/facturaselectronicas', multipart(xml, fileName, { 'user-agent': UA, accept: 'application/json', authorization: 'Bearer ' + token }));
   const d = await leerRespuesta(r);
   if (!r.ok || !d.trackId) throw new Error('DGII recepción: ' + ([d.error, d.mensaje, d.message, d.raw].filter(Boolean).join(' · ') || `HTTP ${r.status}`));
   return d;
 }
 
 export async function enviarRFCE(ambiente, token, xml, fileName) {
-  const r = await fetch(AMBIENTES[ambiente].fc + '/recepcionfc/api/recepcion/ecf', {
-    method: 'POST', headers: { 'user-agent': UA, accept: 'application/json', authorization: 'Bearer ' + token }, body: multipart(xml, fileName),
-  });
+  const r = await fetch(AMBIENTES[ambiente].fc + '/recepcionfc/api/recepcion/ecf', multipart(xml, fileName, { 'user-agent': UA, accept: 'application/json', authorization: 'Bearer ' + token }));
   const d = await leerRespuesta(r);
   if (!r.ok && !d.estado) throw new Error('DGII recepción RFCE: ' + (d.mensaje || d.message || d.raw || `HTTP ${r.status}`));
   return d;
