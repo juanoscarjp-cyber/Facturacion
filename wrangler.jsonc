@@ -1,9 +1,11 @@
 {
-  // Cloudflare Worker que sirve la app estática de la carpeta web/
+  // Cloudflare Worker: sirve la app estática de web/ y la API /api/rnc (consulta DGII)
   "name": "facturacion-rd",
+  "main": "src/worker.js",
   "compatibility_date": "2025-09-01",
   "assets": {
     "directory": "./web",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
   }
 }

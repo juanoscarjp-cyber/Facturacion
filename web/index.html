@@ -1270,11 +1270,11 @@ window.LC_set = val => { LC = val; fillClientes(); };
 function fillClientes() {
   const q = LC.toLowerCase().trim(), qd = digits(q);
   const fs = facturas();
-  const list = clientes().filter(c => !q || [c.nombre, c.telefono, c.email].join(' ').toLowerCase().includes(q) || (qd.length >= 3 && digits(c.rnc).includes(qd)));
+  const list = clientes().filter(c => !q || [c.nombre, c.nombreComercial, c.telefono, c.email].join(' ').toLowerCase().includes(q) || (qd.length >= 3 && digits(c.rnc).includes(qd)));
   $('#lc-body').innerHTML = list.length ? list.map(c => {
     const mis = fs.filter(f => f.clienteId === c.id && f.tipo !== 'B04' && vigente(f));
     const bal = r2(mis.reduce((s, f) => s + saldo(f), 0));
-    return `<tr class="click" onclick="A.estadoCuenta('${c.id}')"><td style="font-weight:500">${esc(c.nombre)}${c.email ? `<span class="sub">${esc(c.email)}</span>` : ''}</td>
+    return `<tr class="click" onclick="A.estadoCuenta('${c.id}')"><td style="font-weight:500">${esc(c.nombre)}${c.nombreComercial && c.nombreComercial !== c.nombre ? `<span class="sub">${esc(c.nombreComercial)}</span>` : ''}${c.email ? `<span class="sub">${esc(c.email)}</span>` : ''}${c.estadoDGII && c.estadoDGII.toUpperCase() !== 'ACTIVO' ? `<span class="pill red" style="margin-top:3px">DGII: ${esc(c.estadoDGII)}</span>` : ''}</td>
       <td class="mono small">${c.rnc ? esc(fmtId(c.rnc)) : '<span class="muted">—</span>'}</td><td class="hide-sm">${esc(c.telefono || '')}</td>
       <td class="right hide-sm">${mis.length}</td><td class="right ${bal > 0 ? '' : 'muted'}" style="${bal > 0 ? 'color:var(--amber);font-weight:600' : ''}">${money(bal)}</td>
       <td class="right nowrap" onclick="event.stopPropagation()"><button class="icon-btn" title="Editar" onclick="A.editarCliente('${c.id}')">${icon('edit')}</button>
@@ -1286,9 +1286,11 @@ A.editarCliente = (id, fromForm) => {
   const c = id ? getC(id) : { nombre: '', rnc: '', telefono: '', email: '', direccion: '', notas: '' };
   modal(id ? 'Editar cliente' : 'Nuevo cliente', `
     <div class="fgrid">
+      ${rncField(c.rnc, 'cliente', c.estadoDGII || '')}
       <div class="field" style="grid-column:1/-1"><label>Nombre o razón social *</label><input class="in" name="nombre" value="${esc(c.nombre)}" required></div>
-      <div class="field"><label>RNC o cédula</label><input class="in" name="rnc" value="${esc(fmtId(c.rnc))}" placeholder="131-00000-1"><span class="hint">RNC 9 dígitos · Cédula 11 dígitos</span></div>
+      <div class="field"><label>Nombre comercial</label><input class="in" name="nombreComercial" value="${esc(c.nombreComercial || '')}"></div>
       <div class="field"><label>Teléfono</label><input class="in" name="telefono" value="${esc(c.telefono)}" placeholder="(809) 000-0000"></div>
+      <div class="field" style="grid-column:1/-1"><label>Actividad económica</label><input class="in" name="actividad" value="${esc(c.actividad || '')}"></div>
       <div class="field" style="grid-column:1/-1"><label>Email</label><input class="in" name="email" type="email" value="${esc(c.email)}"></div>
       <div class="field" style="grid-column:1/-1"><label>Dirección</label><input class="in" name="direccion" value="${esc(c.direccion)}"></div>
       <div class="field" style="grid-column:1/-1"><label>Notas internas</label><textarea class="in" name="notas" rows="2">${esc(c.notas || '')}</textarea></div>
@@ -1299,7 +1301,8 @@ A.editarCliente = (id, fromForm) => {
       if (rnc && !validId(rnc)) { toast('El RNC debe tener 9 dígitos o la cédula 11.', 'error'); return false; }
       const dup = rnc && clientes().find(x => x.rnc === rnc && x.id !== id);
       if (dup) { toast(`Ya existe un cliente con ese RNC/cédula: ${dup.nombre}`, 'error'); return false; }
-      const data = { nombre, rnc, telefono: fv(form, 'telefono'), email: fv(form, 'email'), direccion: fv(form, 'direccion'), notas: fv(form, 'notas') };
+      const data = { nombre, rnc, nombreComercial: fv(form, 'nombreComercial'), actividad: fv(form, 'actividad'), estadoDGII: fv(form, 'estadoDGII'),
+        telefono: fv(form, 'telefono'), email: fv(form, 'email'), direccion: fv(form, 'direccion'), notas: fv(form, 'notas') };
       const target = id ? { ...getC(id), ...data } : { id: uid(), empresaId: DB.activeId, creado: new Date().toISOString(), ...data };
       chk(await sb.from('clientes').upsert({ id: target.id, empresa_id: DB.activeId, data: stripIds(target) }));
       putCache('clientes', target);
@@ -1308,6 +1311,60 @@ A.editarCliente = (id, fromForm) => {
       else setTimeout(() => route(), 0);
     }
   });
+};
+/* ---------- Consulta de RNC en la DGII (vía /api/rnc del Worker) ---------- */
+const rncCache = {};
+function rncField(valor, ctx, estado = '') {
+  return `<div class="field" style="grid-column:1/-1"><label>RNC o cédula</label>
+    <div style="display:flex;gap:8px"><input class="in" name="rnc" value="${esc(fmtId(valor))}" placeholder="131-00000-1" inputmode="numeric"
+      oninput="A.rncAuto(this,'${ctx}')" onkeydown="if(event.key==='Enter'){event.preventDefault();A.buscarRNC(this.form,'${ctx}')}">
+      <button type="button" class="btn" onclick="A.buscarRNC(this.form,'${ctx}')">${icon('search')} Buscar en DGII</button></div>
+    <input type="hidden" name="estadoDGII" value="${esc(estado)}">
+    <span class="hint rnc-info">Escribe el RNC (9 dígitos) o la cédula (11) y se completan los datos desde la DGII.</span></div>`;
+}
+async function consultarRNC(rnc) {
+  rnc = digits(rnc);
+  if (rncCache[rnc]) return rncCache[rnc];
+  let r;
+  try { r = await fetch('/api/rnc?rnc=' + rnc); } catch (e) { throw new Error('Sin conexión para consultar la DGII.'); }
+  const tipo = r.headers.get('content-type') || '';
+  if (!tipo.includes('application/json')) throw new Error('La consulta a la DGII solo funciona en la app publicada.');
+  const d = await r.json();
+  if (d.ok) rncCache[rnc] = d;
+  return d;
+}
+let rncTimer = null;
+A.rncAuto = (input, ctx) => {
+  clearTimeout(rncTimer);
+  const d = digits(input.value);
+  if (d.length === 9 || d.length === 11) rncTimer = setTimeout(() => { if (input.form.dataset.rncBuscado !== d) A.buscarRNC(input.form, ctx); }, 350);
+};
+A.buscarRNC = async (form, ctx) => {
+  const rnc = digits(form.elements.rnc.value);
+  const info = form.querySelector('.rnc-info');
+  const set = (n, v) => { if (form.elements[n] && v) form.elements[n].value = v; };
+  if (!validId(rnc)) { info.innerHTML = '<span style="color:var(--red)">El RNC debe tener 9 dígitos o la cédula 11.</span>'; return; }
+  form.dataset.rncBuscado = rnc;
+  info.innerHTML = 'Consultando DGII…';
+  try {
+    const d = await consultarRNC(rnc);
+    if (digits(form.elements.rnc.value) !== rnc) return;
+    if (!d.ok) { info.innerHTML = `<span style="color:var(--amber)">${esc(d.error)}</span>`; return; }
+    form.elements.rnc.value = fmtId(rnc);
+    if (ctx === 'empresa') {
+      set('nombre', d.nombreComercial || d.razonSocial);
+      set('razonSocial', d.razonSocial);
+    } else {
+      set('nombre', d.razonSocial);
+      set('nombreComercial', d.nombreComercial);
+    }
+    set('actividad', d.actividad);
+    set('estadoDGII', d.estado);
+    const activo = (d.estado || '').toUpperCase() === 'ACTIVO';
+    info.innerHTML = `<span style="color:${activo ? 'var(--green)' : 'var(--red)'};font-weight:600">${activo ? '✓' : '⚠'} DGII: ${esc(d.estado || '—')}</span>`
+      + ` · Régimen ${esc(d.regimen || '—')}${d.facturadorElectronico ? ` · Facturador electrónico: ${esc(d.facturadorElectronico)}` : ''}`
+      + (activo ? '' : ' · <b>Este contribuyente no está activo.</b>');
+  } catch (err) { info.innerHTML = `<span style="color:var(--red)">${esc(err.message)}</span>`; }
 };
 A.borrarCliente = id => {
   const c = getC(id);
@@ -1585,9 +1642,10 @@ A.editarEmpresa = id => {
   modal(id ? 'Editar empresa' : 'Nueva empresa', `
     <div class="section-title" style="margin-top:0">Datos fiscales</div>
     <div class="fgrid">
+      ${rncField(e.rnc, 'empresa', e.estadoDGII || '')}
       <div class="field"><label>Nombre comercial *</label><input class="in" name="nombre" value="${esc(e.nombre)}" required></div>
       <div class="field"><label>Razón social</label><input class="in" name="razonSocial" value="${esc(e.razonSocial)}"></div>
-      <div class="field"><label>RNC / Cédula *</label><input class="in" name="rnc" value="${esc(fmtId(e.rnc))}" placeholder="131-00000-1"></div>
+      <div class="field" style="grid-column:1/-1"><label>Actividad económica</label><input class="in" name="actividad" value="${esc(e.actividad || '')}"></div>
       <div class="field"><label>Teléfono</label><input class="in" name="telefono" value="${esc(e.telefono)}"></div>
       <div class="field"><label>Email</label><input class="in" name="email" value="${esc(e.email)}"></div>
       <div class="field"><label>Sitio web</label><input class="in" name="web" value="${esc(e.web)}"></div>
@@ -1633,7 +1691,7 @@ A.editarEmpresa = id => {
           secuencias[t] = s;
         }
         const data = {
-          nombre, rnc, razonSocial: fv(form, 'razonSocial'), telefono: fv(form, 'telefono'), email: fv(form, 'email'), web: fv(form, 'web'), direccion: fv(form, 'direccion'),
+          nombre, rnc, razonSocial: fv(form, 'razonSocial'), actividad: fv(form, 'actividad'), estadoDGII: fv(form, 'estadoDGII'), telefono: fv(form, 'telefono'), email: fv(form, 'email'), web: fv(form, 'web'), direccion: fv(form, 'direccion'),
           logo: logoTmp || '', prefijo: fv(form, 'prefijo') || 'INV', proximoNumero: Math.max(1, num(fv(form, 'proximoNumero'))),
           tipoPredeterminado: fv(form, 'tipoPredeterminado'), condicionPredeterminada: fv(form, 'condicionPredeterminada'),
           itbisPredeterminado: num(fv(form, 'itbisPredeterminado')), notaPie: fv(form, 'notaPie'), secuencias,
