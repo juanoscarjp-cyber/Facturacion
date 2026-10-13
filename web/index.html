@@ -220,8 +220,8 @@ body.auth-mode #sidebar, body.auth-mode .topbar{display:none}
 .p-sign div{flex:1;border-top:1px solid #111;text-align:center;padding-top:4px}
 .p-foot{margin-top:24px;text-align:center;font-size:10px;color:#555}
 .p-ecf{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin-top:18px}
-.p-qr svg{width:28mm;height:28mm;display:block;padding:3mm;box-sizing:content-box}
-#print-area.ticket .p-qr svg{width:30mm;height:30mm;margin:4px auto}
+.p-qr svg,.p-qr img{width:28mm;height:28mm;display:block;padding:3mm;box-sizing:content-box;image-rendering:pixelated}
+#print-area.ticket .p-qr svg,#print-area.ticket .p-qr img{width:30mm;height:30mm;margin:4px auto}
 /* ticket */
 #print-area.ticket .p-doc{width:72mm;font-size:11px}
 .tk{text-align:center}
@@ -1416,6 +1416,47 @@ A.simAnularRechazados = () => {
     busy(false); toast(`${n} comprobantes anulados.`, 'ok'); route(true);
   }, { okText: 'Anular' });
 };
+// Paso 5: una representación impresa (PDF) por tipo, de los e-CF aceptados en la simulación
+const RI_CAMPOS = [
+  ['31', 'E31-'], ['32 >= RD$250mil', 'E32-1', 'E32-2'], ['33', 'E33-'], ['34', 'E34-'], ['41', 'E41-'], ['43', 'E43-'],
+  ['44', 'E44-'], ['45', 'E45-'], ['46', 'E46-'], ['47', 'E47-'], ['32 < RD$250mil', 'E32-3', 'E32-4', 'E32-5', 'E32-6'],
+];
+A.simPDFs = async () => {
+  const C = certCargar(), sim = C.sim || {};
+  const okS = s => s && ['Aceptado', 'Aceptado Condicional'].includes(s.estado);
+  const elegir = claves => SIM_PLAN.filter(p => claves.some(c => c.endsWith('-') ? p.k.startsWith(c) : p.k === c)).map(p => sim[p.k]).find(s => okS(s) && getF(s.facturaId)?.ecf?.qr);
+  const lista = RI_CAMPOS.map(([campo, ...claves]) => ({ campo, s: elegir(claves) }));
+  const faltan = lista.filter(x => !x.s).map(x => x.campo);
+  if (faltan.length === lista.length) return toast('No hay comprobantes aceptados de la simulación (Paso 4) en esta empresa.', 'error');
+  busy(true, 'Generando representaciones impresas…');
+  try {
+    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');
+    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
+    const caja = document.createElement('div');
+    caja.style.cssText = 'position:fixed;left:-10000px;top:0;width:780px;background:#fff;color:#000;font-size:12px';
+    document.body.appendChild(caja);
+    let total = 0;
+    for (const { campo, s } of lista.filter(x => x.s)) {
+      const f = getF(s.facturaId);
+      busy(true, `Generando PDF tipo ${campo}…`);
+      caja.innerHTML = cartaHTML(f);
+      await Promise.all([...caja.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
+      const blob = await html2pdf().set({
+        margin: 10, image: { type: 'jpeg', quality: 0.9 }, html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+      }).from(caja.firstElementChild).outputPdf('blob');
+      total += blob.size;
+      const etiqueta = campo.includes('>=') ? '32 (250 mil o mas)' : campo.includes('<') ? '32 (menos de 250 mil)' : campo;
+      const nombre = `RI tipo ${etiqueta} - ${f.ncf}.pdf`;
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nombre; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+      await new Promise(r => setTimeout(r, 400));
+    }
+    caja.remove();
+    toast(`${lista.length - faltan.length} PDF generados (${(total / 1048576).toFixed(1)} MB en total).${faltan.length ? ' Faltan tipos: ' + faltan.join(', ') : ''}`, faltan.length ? 'error' : 'ok');
+  } catch (err) { toast('No se pudieron generar los PDF: ' + errMsg(err), 'error'); }
+  finally { busy(false); }
+};
 // Si la DGII reinicia las pruebas, se empieza de nuevo con e-NCF nuevos (las secuencias nunca retroceden).
 A.simReiniciar = () => {
   const C = certCargar(), sim = C.sim || {};
@@ -1468,6 +1509,7 @@ function simHTML() {
       ${Object.keys(sim).length ? `<button class="btn" onclick="A.simReiniciar()">${icon('undo')} Reiniciar simulación</button>` : ''}
       <button class="btn primary" ${listo ? '' : 'disabled'} onclick="A.simTodo()">${icon('receipt')} Generar y enviar simulación</button>
       <button class="btn" onclick="A.simXMLConsumo()">${icon('down')} XML de consumo &lt; 250 mil</button>
+      ${hechos ? `<button class="btn" onclick="A.simPDFs()">${icon('print')} Representaciones impresas (Paso 5)</button>` : ''}
     </div>
     ${Object.keys(sim).length ? `<div class="tbl-wrap mt"><table><thead><tr><th>Caso</th><th>Factura</th><th>e-NCF</th><th>Estado DGII</th><th>Detalle</th><th></th></tr></thead><tbody>
       ${SIM_PLAN.filter(p => sim[p.k]).map(p => { const s = sim[p.k]; return `<tr><td class="mono small">${p.k}</td>
@@ -2512,8 +2554,9 @@ async function importarDatos(src) {
 // Código QR (versión 8 como pide la DGII; si el contenido no cabe, versión automática)
 function qrSVG(texto) {
   if (typeof qrcode === 'undefined' || !texto) return '';
+  // Se genera como imagen (no SVG) para que también se vea nítido en los PDF generados.
   for (const version of [8, 0]) {
-    try { const qr = qrcode(version, 'L'); qr.addData(texto); qr.make(); return qr.createSvgTag({ cellSize: 2, margin: 0, scalable: true }); } catch (e) { }
+    try { const qr = qrcode(version, 'L'); qr.addData(texto); qr.make(); return `<img src="${qr.createDataURL(6, 0)}" alt="Código QR">`; } catch (e) { }
   }
   return '';
 }
