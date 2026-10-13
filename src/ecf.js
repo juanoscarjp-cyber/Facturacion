@@ -54,8 +54,8 @@ const T = (n, t) => ({ n, a: [], c: [{ t: String(t) }] });
 // Construye el árbol siguiendo el esqueleto: omite opcionales vacíos, exige obligatorios.
 export function buildFromSkeleton(skel, data, path = '') {
   const [spec, kids] = Array.isArray(skel) ? skel : [skel, null];
-  const req = spec.endsWith('!');
-  const name = req ? spec.slice(0, -1) : spec;
+  const req = spec.includes('!');
+  const name = spec.replace(/[!*]/g, '');
   const val = data == null ? undefined : data[name];
   const here = path ? path + '/' + name : name;
   const vacio = v => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length);
@@ -298,61 +298,78 @@ const txt = (v, max) => { const s = String(v ?? '').replace(/\s+/g, ' ').trim();
 const telefono = v => { const d = digits(v); return d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}` : undefined; };
 const correo = v => { const s = String(v || '').trim(); return /^\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$/.test(s) && s.length <= 80 ? s : undefined; };
 const FORMA_PAGO = { Efectivo: 1, Cheque: 2, Transferencia: 2, Tarjeta: 3, Otro: 8 };
-const IND_FACT = { 18: 1, 16: 2, 0: 4 };
+const IND_FACT = { 18: 1, 16: 2 };
+// Tipos que el contribuyente emite al COMPRAR o pagar (no son ventas)
+export const TIPOS_EGRESO = [41, 43, 47];
 
 /* ---------------------------------------------------------------------------
    Datos del e-CF a partir de una factura de la app
-   factura: { tipo:'E31', ncf, fecha, items[], propina, condicion, vencimiento, pagos[], cliente{}, numero, notas }
+   factura: { tipo:'E31', ncf, fecha, items[], propina, condicion, vencimiento, pagos[], cliente{}, numero, notas,
+              retencion: { itbis: %, isr: % } (E41/E47) }
    empresa: { rnc, razonSocial, nombre, direccion, telefono, email, web, actividad }
    --------------------------------------------------------------------------- */
 export function calcularECF(factura) {
+  const tipo = Number(String(factura.tipo || '').slice(1));
+  const ret = factura.retencion || {};
+  const pctItbisRet = tipo === 41 ? num(ret.itbis) : 0;
+  const pctIsrRet = tipo === 41 || tipo === 47 ? num(ret.isr) : 0;
   const lineas = (factura.items || []).map((it, i) => {
     const cant = r2(num(it.cantidad));
     const bruto = r2(cant * num(it.precio));
     const desc = r2(bruto * num(it.descuento) / 100);
     const base = r2(bruto - desc);
     const tasa = num(it.itbis);
-    return { i: i + 1, it, cant, bruto, desc, base, tasa, itbis: r2(base * tasa / 100), ind: IND_FACT[tasa] ?? 4 };
+    // ITBIS 0%: en exportaciones (E46) es "tasa 3"; en los demás tipos se trata como exento.
+    const ind = IND_FACT[tasa] ?? (tipo === 46 ? 3 : 4);
+    const itbis = r2(base * tasa / 100);
+    return { i: i + 1, it, cant, bruto, desc, base, tasa, itbis, ind, itbisRet: r2(itbis * pctItbisRet / 100), isrRet: r2(base * pctIsrRet / 100) };
   });
-  const suma = f => r2(lineas.filter(f).reduce((s, l) => s + l.base, 0));
-  const sumaItbis = f => r2(lineas.filter(f).reduce((s, l) => s + l.itbis, 0));
-  const g1 = suma(l => l.ind === 1), g2 = suma(l => l.ind === 2), ex = suma(l => l.ind === 4);
-  const t1 = sumaItbis(l => l.ind === 1), t2 = sumaItbis(l => l.ind === 2);
+  const suma = (f, k = 'base') => r2(lineas.filter(f).reduce((s, l) => s + l[k], 0));
+  const g1 = suma(l => l.ind === 1), g2 = suma(l => l.ind === 2), g3 = suma(l => l.ind === 3), ex = suma(l => l.ind === 4);
+  const t1 = suma(l => l.ind === 1, 'itbis'), t2 = suma(l => l.ind === 2, 'itbis');
   const baseTotal = r2(lineas.reduce((s, l) => s + l.base, 0));
   const propina = factura.propina ? r2(baseTotal * 0.10) : 0;
-  const total = r2(g1 + g2 + ex + t1 + t2 + propina);
-  return { lineas, g1, g2, ex, t1, t2, gravado: r2(g1 + g2), itbis: r2(t1 + t2), propina, total };
+  const total = r2(g1 + g2 + g3 + ex + t1 + t2 + propina);
+  return {
+    lineas, g1, g2, g3, ex, t1, t2, gravado: r2(g1 + g2 + g3), itbis: r2(t1 + t2), propina, total,
+    itbisRetenido: suma(() => true, 'itbisRet'), isrRetenido: suma(() => true, 'isrRet'), pctItbisRet, pctIsrRet,
+  };
 }
 
 export function datosECF({ factura, empresa, original, vencimientoSecuencia, tiposProducto = {}, fechaHoraFirma }) {
   const tipo = Number(String(factura.tipo).slice(1));
-  if (!SKELETONS[tipo]) throw new Error(`Tipo de e-CF no soportado: ${factura.tipo}`);
+  if (!ESQUEMAS[tipo]) throw new Error(`Tipo de e-CF no soportado: ${factura.tipo}`);
   const c = calcularECF(factura);
   const cli = factura.cliente || {};
   const rncCli = digits(cli.rnc);
   const tieneRnc = rncCli.length === 9 || rncCli.length === 11;
-  if ([31, 44, 45].includes(tipo) && !tieneRnc) throw new Error('Este tipo de e-CF requiere un cliente con RNC o cédula.');
-  if (tipo === 32 && c.total >= LIMITE_RFCE && !tieneRnc) throw new Error('Las facturas de consumo de RD$250,000 o más requieren RNC o cédula del cliente.');
-  if (tipo === 44 && c.lineas.some(l => l.ind !== 4)) throw new Error('El e-CF 44 (Régimen Especial) solo admite ítems exentos de ITBIS.');
+  const idExt = !tieneRnc ? txt(cli.idExtranjero, 20) : undefined;
   if (!c.lineas.length) throw new Error('El comprobante no tiene ítems.');
   if (!txt(empresa.direccion, 100)) throw new Error('Falta la dirección de la empresa (Empresas → Editar).');
+  if ([31, 41, 44, 45].includes(tipo) && !tieneRnc) throw new Error(tipo === 41 ? 'La factura de compras (E41) requiere el RNC o la cédula del proveedor.' : 'Este tipo de e-CF requiere un cliente con RNC o cédula.');
+  if ([46, 47].includes(tipo) && !tieneRnc && !idExt) throw new Error('Indica el RNC/cédula o el identificador extranjero del ' + (tipo === 47 ? 'proveedor.' : 'cliente.'));
+  if (tipo === 32 && c.total >= LIMITE_RFCE && !tieneRnc && !idExt) throw new Error('Las facturas de consumo de RD$250,000 o más requieren RNC o cédula del cliente.');
+  if (tipo === 44 && c.lineas.some(l => l.ind !== 4)) throw new Error('El e-CF 44 (Régimen Especial) solo admite ítems exentos de ITBIS.');
+  if (tipo === 46 && c.lineas.some(l => l.ind !== 3)) throw new Error('Las exportaciones (E46) llevan ITBIS 0%: pon todos los ítems en "Exento / 0%".');
+  if (tipo === 47 && c.lineas.some(l => l.ind !== 4)) throw new Error('Los pagos al exterior (E47) no llevan ITBIS: pon todos los ítems en "Exento".');
+  const conVence = tipo !== 32 && tipo !== 34;
+  if (conVence && !vencimientoSecuencia) throw new Error('La secuencia e-NCF no tiene fecha de vencimiento (Empresas → Secuencias).');
 
-  const credito = factura.condicion === 'credito' && tipo !== 34;
+  const credito = factura.condicion === 'credito' && ![33, 34, 43].includes(tipo);
   const iddoc = {
     TipoeCF: tipo,
     eNCF: factura.ncf,
-    FechaVencimientoSecuencia: [31, 33, 44, 45].includes(tipo) ? fechaDGII(vencimientoSecuencia || '') : undefined,
-    IndicadorMontoGravado: c.lineas.some(l => l.ind === 1 || l.ind === 2) && tipo !== 44 ? 0 : undefined,
+    FechaVencimientoSecuencia: conVence ? fechaDGII(vencimientoSecuencia) : undefined,
+    IndicadorMontoGravado: c.lineas.some(l => l.ind === 1 || l.ind === 2) ? 0 : undefined,
     TipoIngresos: '01',
     TipoPago: credito ? 2 : 1,
     FechaLimitePago: credito && factura.vencimiento ? fechaDGII(factura.vencimiento) : undefined,
   };
-  if ([31, 33, 44, 45].includes(tipo) && !vencimientoSecuencia) throw new Error('La secuencia e-NCF no tiene fecha de vencimiento (Empresas → Secuencias).');
-  if (tipo !== 34) {
+  if (![34, 43].includes(tipo)) {
     const formas = {};
     for (const p of factura.pagos || []) { const k = FORMA_PAGO[p.metodo] || 8; formas[k] = r2((formas[k] || 0) + num(p.monto)); }
     const pagado = r2(Object.values(formas).reduce((s, v) => s + v, 0));
-    if (c.total - pagado > 0.004) formas[4] = r2((formas[4] || 0) + c.total - pagado);
+    if (c.total - pagado > 0.004) formas[credito ? 4 : 1] = r2((formas[credito ? 4 : 1] || 0) + c.total - pagado);
     const lista = Object.entries(formas).filter(([, v]) => v > 0).slice(0, 7).map(([k, v]) => ({ FormaPago: k, MontoPago: monto(v) }));
     if (lista.length) iddoc.TablaFormasPago = { FormaDePago: lista };
   }
@@ -373,29 +390,38 @@ export function datosECF({ factura, empresa, original, vencimientoSecuencia, tip
     NumeroFacturaInterna: txt(factura.numero, 20),
     FechaEmision: fechaDGII(factura.fecha),
   };
-  const comprador = {
+  // En E41 y E47 la sección "Comprador" contiene los datos del proveedor. E43 no lleva comprador.
+  const identificado = tieneRnc || !!idExt;
+  const comprador = tipo === 43 ? undefined : {
     RNCComprador: tieneRnc ? rncCli : undefined,
-    RazonSocialComprador: tieneRnc || tipo === 44 ? txt(cli.nombre, 150) : undefined,
-    CorreoComprador: tieneRnc ? correo(cli.email) : undefined,
-    DireccionComprador: tieneRnc ? txt(cli.direccion, 100) : undefined,
+    IdentificadorExtranjero: idExt,
+    RazonSocialComprador: identificado || tipo === 44 ? txt(cli.nombre, 150) : undefined,
+    CorreoComprador: identificado ? correo(cli.email) : undefined,
+    DireccionComprador: identificado ? txt(cli.direccion, 100) : undefined,
   };
 
+  const hay = ind => c.lineas.some(l => l.ind === ind);
   const totales = tipo === 44 ? { MontoExento: monto(c.ex) } : {
-    MontoGravadoTotal: c.gravado > 0 ? monto(c.gravado) : undefined,
-    MontoGravadoI1: c.lineas.some(l => l.ind === 1) ? monto(c.g1) : undefined,
-    MontoGravadoI2: c.lineas.some(l => l.ind === 2) ? monto(c.g2) : undefined,
-    MontoExento: c.lineas.some(l => l.ind === 4) ? monto(c.ex) : undefined,
-    ITBIS1: c.lineas.some(l => l.ind === 1) ? 18 : undefined,
-    ITBIS2: c.lineas.some(l => l.ind === 2) ? 16 : undefined,
-    TotalITBIS: c.gravado > 0 ? monto(c.itbis) : undefined,
-    TotalITBIS1: c.lineas.some(l => l.ind === 1) ? monto(c.t1) : undefined,
-    TotalITBIS2: c.lineas.some(l => l.ind === 2) ? monto(c.t2) : undefined,
+    MontoGravadoTotal: hay(1) || hay(2) || hay(3) ? monto(c.gravado) : undefined,
+    MontoGravadoI1: hay(1) ? monto(c.g1) : undefined,
+    MontoGravadoI2: hay(2) ? monto(c.g2) : undefined,
+    MontoGravadoI3: hay(3) ? monto(c.g3) : undefined,
+    MontoExento: hay(4) ? monto(c.ex) : undefined,
+    ITBIS1: hay(1) ? 18 : undefined,
+    ITBIS2: hay(2) ? 16 : undefined,
+    ITBIS3: hay(3) ? 0 : undefined,
+    TotalITBIS: hay(1) || hay(2) || hay(3) ? monto(c.itbis) : undefined,
+    TotalITBIS1: hay(1) ? monto(c.t1) : undefined,
+    TotalITBIS2: hay(2) ? monto(c.t2) : undefined,
+    TotalITBIS3: hay(3) ? monto(0) : undefined,
   };
   if (c.propina > 0) {
     totales.MontoImpuestoAdicional = monto(c.propina);
     totales.ImpuestosAdicionales = { ImpuestoAdicional: [{ TipoImpuesto: '001', TasaImpuestoAdicional: 10, OtrosImpuestosAdicionales: monto(c.propina) }] };
   }
   totales.MontoTotal = monto(c.total);
+  if (tipo === 41) { totales.TotalITBISRetenido = monto(c.itbisRetenido); totales.TotalISRRetencion = monto(c.isrRetenido); }
+  if (tipo === 47) totales.TotalISRRetencion = monto(c.isrRetenido);
 
   const items = c.lineas.map(l => {
     const it = l.it;
@@ -405,6 +431,11 @@ export function datosECF({ factura, empresa, original, vencimientoSecuencia, tip
       NumeroLinea: l.i,
       TablaCodigosItem: txt(it.sku, 35) ? { CodigosItem: [{ TipoCodigo: 'Interna', CodigoItem: txt(it.sku, 35) }] } : undefined,
       IndicadorFacturacion: l.ind,
+      Retencion: tipo === 41 || tipo === 47 ? {
+        IndicadorAgenteRetencionoPercepcion: 1,
+        MontoITBISRetenido: tipo === 41 ? monto(l.itbisRet) : undefined,
+        MontoISRRetenido: monto(l.isrRet),
+      } : undefined,
       NombreItem: txt(nombre, 80),
       IndicadorBienoServicio: tipoBS,
       DescripcionItem: nombre.length > 80 ? txt(nombre, 1000) : undefined,
@@ -438,9 +469,10 @@ export function datosECF({ factura, empresa, original, vencimientoSecuencia, tip
   return { tipo, data, calc: c };
 }
 
+// El orden de los elementos sale de los esquemas completos generados desde los XSD oficiales.
 export function construirECF(args) {
   const { tipo, data, calc } = datosECF(args);
-  const [root] = buildFromSkeleton(SKELETONS[tipo], { ECF: data });
+  const [root] = buildFromSkeleton(ESQUEMAS[tipo], { ECF: data });
   return { tipo, root, calc, data };
 }
 
