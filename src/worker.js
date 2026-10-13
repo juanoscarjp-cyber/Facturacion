@@ -3,7 +3,7 @@
 //   /api/ecf/*    facturación electrónica (firma y envío de e-CF a la DGII)
 import {
   construirECF, construirRFCE, calcularECF, signTree, importPrivateKey, obtenerToken, enviarECF, enviarRFCE,
-  consultarResultado, urlTimbre, fechaHoraRD, b64, unb64, LIMITE_RFCE, AMBIENTES, parseXml,
+  consultarResultado, urlTimbre, fechaHoraRD, b64, unb64, LIMITE_RFCE, AMBIENTES, parseXml, construirDesdeFila, ESQUEMAS,
 } from './ecf.js';
 
 const SB_URL = 'https://gwvqpnmwqvqrmsbpwmhj.supabase.co';
@@ -38,6 +38,7 @@ export default {
         if (ruta === 'emitir') return json(await emitirECF(env, jwt, body));
         if (ruta === 'consultar') return json(await consultarECF(env, jwt, body));
         if (ruta === 'firmar') return json(await firmarXmlLibre(env, jwt, body));
+        if (ruta === 'set') return json(await procesarSet(env, jwt, body));
         return json({ ok: false, error: 'Ruta no encontrada' }, 404);
       } catch (err) {
         return json({ ok: false, error: String(err && err.message || err) }, 400);
@@ -192,6 +193,38 @@ async function emitirECF(env, jwt, { facturaId }) {
   }
   const ecf = await guardarEstado(jwt, facturaId, res);
   return { ok: true, ecf };
+}
+
+// Set de pruebas de certificación: genera el XML desde la fila del Excel de la DGII, lo firma y lo envía.
+//   accion: 'ecf' (firmar + enviar a recepción), 'firmar' (solo firmar), 'rfce' (resumen de consumo), 'consultar' (trackId)
+async function procesarSet(env, jwt, { empresaId, ambiente = 'certecf', accion, fila, codigoSeguridad, trackId }) {
+  if (!AMBIENTES[ambiente]) throw new Error('Ambiente inválido.');
+  const s = await firmante(env, jwt, empresaId);
+  const token = await obtenerToken(ambiente, s.privateKey, s.cert, 'empresa:' + empresaId);
+  const resumen = q => ({ trackId: q.trackId, codigo: q.codigo, estado: q.estado || ESTADOS[q.codigo], mensajes: mensajes(q), secuenciaUtilizada: q.secuenciaUtilizada });
+  if (accion === 'consultar') return { ok: true, ...resumen(await consultarResultado(ambiente, token, trackId)) };
+  if (!fila || !fila.ENCF || !fila.RNCEmisor) throw new Error('Fila del set incompleta (falta ENCF o RNCEmisor).');
+  const encf = String(fila.ENCF).trim(), fileName = String(fila.RNCEmisor).trim() + encf + '.xml';
+  if (accion === 'rfce') {
+    if (!codigoSeguridad) throw new Error('Falta el código de seguridad del e-CF completo.');
+    const { xml } = await signTree(construirDesdeFila(ESQUEMAS.RFCE, { ...fila, CodigoSeguridadeCF: codigoSeguridad }), s.privateKey, s.cert);
+    const d = await enviarRFCE(ambiente, token, xml, fileName);
+    return { ok: true, xmlRfce: xml, codigo: d.codigo, estado: d.estado || ESTADOS[d.codigo], mensajes: mensajes(d), secuenciaUtilizada: d.secuenciaUtilizada };
+  }
+  const esquema = ESQUEMAS[String(fila.TipoeCF).trim()];
+  if (!esquema) throw new Error('Tipo de e-CF no soportado: ' + fila.TipoeCF);
+  const fechaFirma = fechaHoraRD();
+  const { xml, signatureValue } = await signTree(construirDesdeFila(esquema, { ...fila, FechaHoraFirma: fechaFirma }), s.privateKey, s.cert);
+  const base = { ok: true, xml, codigoSeguridad: signatureValue.slice(0, 6), fechaFirma };
+  if (accion === 'firmar') return base;
+  const d = await enviarECF(ambiente, token, xml, fileName);
+  let res = { ...base, trackId: d.trackId, codigo: 3, estado: 'En Proceso', mensajes: [] };
+  for (const espera of [500, 1000, 1500, 2500]) {
+    await new Promise(r => setTimeout(r, espera));
+    const q = await consultarResultado(ambiente, token, d.trackId).catch(() => null);
+    if (q && q.codigo !== 3 && q.codigo !== 0) { res = { ...res, ...resumen(q), trackId: d.trackId }; break; }
+  }
+  return res;
 }
 
 // Firma con el certificado de la empresa un XML cualquiera (p. ej. los que pide la DGII en la postulación).

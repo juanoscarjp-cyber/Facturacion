@@ -2,6 +2,8 @@
 // firma XMLDSig (RSA-SHA256) y cliente de los servicios web de la DGII.
 // Funciona en Cloudflare Workers y en el navegador (solo usa WebCrypto y fetch).
 // Referencia: docs/ecf-notas-tecnicas.md
+import { ESQUEMAS } from './ecf-esquemas.js';
+export { ESQUEMAS };
 
 /* ---------------------------------------------------------------------------
    Orden de los elementos según los XSD oficiales v1.0 (solo los campos que usamos).
@@ -168,6 +170,44 @@ export async function signTree(root, privateKey, certB64) {
     E('KeyInfo', [], [E('X509Data', [], [T('X509Certificate', certB64)])]),
   ]));
   return { xml: serialize(root), signatureValue: sig };
+}
+
+/* ---------------------------------------------------------------------------
+   Set de pruebas de certificación DGII: cada fila del Excel trae los valores con el nombre
+   del elemento XML y sus índices de repetición, p. ej. NombreItem[3], TipoCodigo[3][1].
+   --------------------------------------------------------------------------- */
+const vacioSet = v => v === undefined || v === null || String(v).trim() === '' || String(v).trim() === '#e';
+export function construirDesdeFila(esqueleto, fila) {
+  const valores = new Map();
+  for (const [k, v] of Object.entries(fila || {})) if (!vacioSet(v)) valores.set(k.trim().toLowerCase(), String(v).trim());
+  const leer = (nombre, idx) => {
+    const claves = [nombre + idx.map(i => `[${i}]`).join('')];
+    if (idx.length && idx[idx.length - 1] === 1) claves.push(nombre + idx.slice(0, -1).map(i => `[${i}]`).join(''));
+    for (const k of claves) { const v = valores.get(k.toLowerCase()); if (v !== undefined) return v; }
+    return undefined;
+  };
+  const nodo = (s, idx, padre) => {
+    const [spec, kids] = Array.isArray(s) ? s : [s, null];
+    const req = spec.includes('!'), rep = spec.includes('*');
+    const nombre = spec.replace(/[!*]/g, '');
+    const columna = nombre === 'NumeroLinea' && padre === 'DescuentoORecargo' ? 'NumeroLineaDoR' : nombre;
+    const conTexto = n => n.t !== undefined || (n.c || []).some(conTexto);
+    const una = ix => {
+      if (!kids) { const v = leer(columna, ix); return v === undefined ? null : T(nombre, v); }
+      const hijos = kids.flatMap(k => nodo(k, ix, nombre));
+      // Los compuestos obligatorios vacíos (p. ej. <Retencion/>) no cuentan como dato de esta repetición.
+      return hijos.some(conTexto) ? E(nombre, [], hijos) : null;
+    };
+    if (rep) {
+      const out = [];
+      for (let k = 1; k <= 10000; k++) { const el = una([...idx, k]); if (!el) break; out.push(el); }
+      return out;
+    }
+    const el = una(idx);
+    if (el) return [el];
+    return req && kids ? [E(nombre, [], [])] : [];
+  };
+  return nodo(esqueleto, [], '')[0];
 }
 
 /* ---------------------------------------------------------------------------

@@ -591,7 +591,7 @@ function downloadCSV(name, rows) {
 const NAV = [
   ['dashboard', 'Dashboard', 'dash'], ['facturas', 'Facturas', 'inv'], ['clientes', 'Clientes', 'users'],
   ['productos', 'Productos y servicios', 'box'], ['reportes', 'Reportes', 'chart'],
-  ['empresas', 'Empresas', 'building'], ['ajustes', 'Respaldo y ajustes', 'gear'],
+  ['empresas', 'Empresas', 'building'], ['certificacion', 'Certificación DGII', 'receipt'], ['ajustes', 'Respaldo y ajustes', 'gear'],
 ];
 function parseHash() {
   const h = location.hash.replace(/^#\/?/, '') || 'dashboard';
@@ -644,6 +644,7 @@ function route(keepScroll) {
       case 'reportes': return viewReportes(v);
       case 'empresas': return viewEmpresas(v);
       case 'ajustes': return viewAjustes(v);
+      case 'certificacion': return viewCertificacion(v);
       default: location.hash = '#/dashboard';
     }
   } catch (err) {
@@ -1188,6 +1189,148 @@ A.configECF = async eid => {
     }
   });
 };
+
+/* =========================================================
+   CERTIFICACIÓN DGII — set de pruebas (Excel que entrega la DGII)
+   ========================================================= */
+const certKey = () => 'cert_set_' + DB.activeId;
+let CERT = null;
+function certCargar() {
+  if (CERT && CERT.empresaId === DB.activeId) return CERT;
+  try { CERT = JSON.parse(localStorage.getItem(certKey())) || null; } catch (e) { CERT = null; }
+  if (!CERT || CERT.empresaId !== DB.activeId) CERT = { empresaId: DB.activeId, archivo: '', ambiente: 'certecf', ECF: [], RFCE: [], res: {} };
+  return CERT;
+}
+function certGuardar() { try { localStorage.setItem(certKey(), JSON.stringify(CERT)); } catch (e) { } }
+const certEsRfce = f => String(f.TipoeCF) === '32' && num(f.MontoTotal) < LIMITE_RFCE;
+const certOrden = f => (['33', '34'].includes(String(f.TipoeCF)) ? 3 : certEsRfce(f) ? 2 : 1);
+const certOk = r => r && ['Aceptado', 'Aceptado Condicional'].includes(r.estado);
+
+function viewCertificacion(v) {
+  const e = emp();
+  crumbs([e.nombre, '#/dashboard'], ['Certificación DGII']);
+  const C = certCargar();
+  const filas = [...C.ECF].sort((a, b) => certOrden(a) - certOrden(b));
+  const okE = filas.filter(f => !certEsRfce(f) && certOk(C.res[f.ENCF])).length, totE = filas.filter(f => !certEsRfce(f)).length;
+  const okR = filas.filter(f => certEsRfce(f) && certOk(C.res[f.ENCF])).length, totR = filas.filter(certEsRfce).length;
+  const grupo = { 1: '1 · Comprobantes', 2: '2 · Consumo < RD$250 mil (resumen RFCE)', 3: '3 · Notas de débito y crédito' };
+  v.innerHTML = `
+  <div class="page-head"><h1>Certificación DGII</h1></div>
+  <div class="alert info mb"><div>Etapa <b>"Pruebas de datos e-CF"</b>: descarga el set de pruebas en el portal de certificación de la DGII y cárgalo aquí.
+    El sistema genera cada comprobante con esos datos, lo firma con el certificado de <b>${esc(e.nombre)}</b> y lo envía en este orden: comprobantes, resúmenes de consumo y, al final, notas de débito y crédito.</div></div>
+  <div class="card mb"><div class="card-b" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div class="field"><label>Set de pruebas (.xlsx)</label><input type="file" accept=".xlsx" onchange="A.certArchivo(this)"></div>
+    <div class="field"><label>Ambiente</label><select class="in" onchange="CERT.ambiente=this.value;certGuardar()">
+      ${['certecf', 'testecf'].map(a => `<option value="${a}" ${C.ambiente === a ? 'selected' : ''}>${AMBIENTES_ECF[a]}</option>`).join('')}</select></div>
+    ${filas.length ? `<button class="btn primary" onclick="A.certTodo()">${icon('receipt')} Enviar pendientes en orden</button>
+      <button class="btn" onclick="A.certDescargarFC()">${icon('down')} XML de consumo &lt; 250 mil</button>
+      <button class="btn danger" onclick="A.certLimpiar()">${icon('trash')} Quitar set</button>` : ''}
+  </div>
+  ${C.archivo ? `<div class="card-b muted small" style="padding-top:0">Archivo: ${esc(C.archivo)} · ${C.ECF.length} comprobantes · ${C.RFCE.length} resúmenes</div>` : ''}</div>
+  ${filas.length ? `
+  <div class="grid g2 mb">
+    <div class="card kpi"><div class="l">Comprobantes aceptados</div><div class="v">${okE}/${totE}</div></div>
+    <div class="card kpi"><div class="l">Resúmenes de consumo aceptados</div><div class="v">${okR}/${totR}</div><div class="d">Luego sube sus XML completos en el portal (sección "Facturas de consumo &lt; 250Mil")</div></div>
+  </div>
+  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Orden</th><th>e-NCF</th><th>Tipo</th><th class="right">Total</th><th>Estado DGII</th><th>Detalle</th><th></th></tr></thead><tbody>
+  ${filas.map(f => {
+    const r = C.res[f.ENCF] || {};
+    return `<tr><td class="small muted nowrap">${grupo[certOrden(f)]}</td><td class="mono">${esc(f.ENCF)}</td><td>E${esc(f.TipoeCF)}</td><td class="right nowrap">${money(num(f.MontoTotal))}</td>
+      <td>${r.estado ? `<span class="pill ${PILL_ECF[r.estado] || 'gray'}">${esc(r.estado)}</span>` : r.error ? '<span class="pill red">Error</span>' : '<span class="pill gray">Pendiente</span>'}</td>
+      <td class="small" style="max-width:380px">${r.error ? `<span style="color:var(--red)">${esc(r.error)}</span>` : (r.mensajes || []).map(esc).join('<br>')}${r.trackId ? `<span class="sub mono">TrackId ${esc(r.trackId)}</span>` : ''}</td>
+      <td class="right nowrap">
+        ${!certOk(r) && r.estado !== 'En Proceso' ? `<button class="btn sm" onclick="A.certFila('${esc(f.ENCF)}')">Enviar</button>` : ''}
+        ${r.trackId && !certOk(r) ? `<button class="btn sm" onclick="A.certConsultar('${esc(f.ENCF)}')">Consultar</button>` : ''}
+        ${r.xml ? `<button class="icon-btn" title="Descargar XML firmado" onclick="A.certXML('${esc(f.ENCF)}')">${icon('down')}</button>` : ''}
+      </td></tr>`;
+  }).join('')}
+  </tbody></table></div></div>` : `<div class="card"><div class="empty">Carga el archivo del set de pruebas para comenzar.</div></div>`}`;
+}
+A.certArchivo = async input => {
+  const file = input.files[0]; if (!file) return;
+  busy(true, 'Leyendo el set de pruebas…');
+  try {
+    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const hoja = n => {
+      const ws = wb.Sheets[n]; if (!ws) return [];
+      return XLSX.utils.sheet_to_json(ws, { raw: false, defval: '' }).map(fila => {
+        const o = {}; for (const [k, val] of Object.entries(fila)) { const s = String(val).trim(); if (s && s !== '#e') o[k.trim()] = s; }
+        return o;
+      }).filter(o => o.ENCF);
+    };
+    const C = certCargar();
+    if (C.ECF.length && Object.keys(C.res).length && !confirm('Ya hay un set cargado con resultados. ¿Reemplazarlo?')) return;
+    Object.assign(C, { archivo: file.name, ECF: hoja('ECF'), RFCE: hoja('RFCE'), res: {} });
+    if (!C.ECF.length) throw new Error('No se encontró la hoja "ECF" con comprobantes en el archivo.');
+    certGuardar(); toast(`Set cargado: ${C.ECF.length} comprobantes y ${C.RFCE.length} resúmenes`, 'ok');
+  } catch (err) { toast(errMsg(err), 'error'); }
+  finally { busy(false); input.value = ''; route(true); }
+};
+async function certProcesar(f) {
+  const C = certCargar(), base = { empresaId: DB.activeId, ambiente: C.ambiente };
+  try {
+    if (certEsRfce(f)) {
+      const rf = C.RFCE.find(r => r.ENCF === f.ENCF);
+      if (!rf) throw new Error('No hay fila RFCE para ' + f.ENCF);
+      // Si ya se firmó el e-CF completo, se reutiliza para que el código de seguridad coincida con el XML que se sube al portal.
+      const previo = C.res[f.ENCF] || {};
+      const firmado = previo.xml && previo.codigoSeguridad ? previo : await apiECF('set', { ...base, accion: 'firmar', fila: f });
+      C.res[f.ENCF] = { xml: firmado.xml, codigoSeguridad: firmado.codigoSeguridad, fechaFirma: firmado.fechaFirma };
+      certGuardar();
+      const r = await apiECF('set', { ...base, accion: 'rfce', fila: rf, codigoSeguridad: firmado.codigoSeguridad });
+      C.res[f.ENCF] = { ...C.res[f.ENCF], estado: r.estado, codigo: r.codigo, mensajes: r.mensajes, secuenciaUtilizada: r.secuenciaUtilizada, rfce: true };
+    } else {
+      const r = await apiECF('set', { ...base, accion: 'ecf', fila: f });
+      C.res[f.ENCF] = { xml: r.xml, codigoSeguridad: r.codigoSeguridad, trackId: r.trackId, estado: r.estado, codigo: r.codigo, mensajes: r.mensajes };
+    }
+  } catch (err) {
+    C.res[f.ENCF] = { ...(C.res[f.ENCF] || {}), error: errMsg(err), estado: (C.res[f.ENCF] || {}).estado };
+  }
+  certGuardar();
+}
+A.certFila = async encf => {
+  const f = certCargar().ECF.find(x => x.ENCF === encf);
+  busy(true, 'Enviando ' + encf + '…');
+  try { await certProcesar(f); } finally { busy(false); route(true); }
+};
+A.certTodo = async () => {
+  const C = certCargar();
+  const pend = [...C.ECF].sort((a, b) => certOrden(a) - certOrden(b)).filter(f => !certOk(C.res[f.ENCF]) && (C.res[f.ENCF] || {}).estado !== 'En Proceso');
+  if (!pend.length) return toast('No hay comprobantes pendientes.');
+  for (let i = 0; i < pend.length; i++) {
+    busy(true, `Enviando ${i + 1} de ${pend.length}: ${pend[i].ENCF}…`);
+    await certProcesar(pend[i]);
+  }
+  busy(false); route(true);
+  const fallos = pend.filter(f => !certOk(C.res[f.ENCF])).length;
+  toast(fallos ? `Terminado con ${fallos} pendientes o rechazados. Revisa el detalle.` : 'Todos los comprobantes fueron aceptados.', fallos ? 'error' : 'ok');
+};
+A.certConsultar = async encf => {
+  const C = certCargar(), r = C.res[encf];
+  busy(true, 'Consultando ' + encf + '…');
+  try {
+    const q = await apiECF('set', { empresaId: DB.activeId, ambiente: C.ambiente, accion: 'consultar', trackId: r.trackId });
+    Object.assign(r, { estado: q.estado, codigo: q.codigo, mensajes: q.mensajes, error: '' });
+    certGuardar();
+  } catch (err) { toast(errMsg(err), 'error'); }
+  finally { busy(false); route(true); }
+};
+A.certXML = encf => {
+  const C = certCargar(), f = C.ECF.find(x => x.ENCF === encf), r = C.res[encf];
+  download(`${f.RNCEmisor}${encf}.xml`, r.xml, 'text/xml');
+};
+A.certDescargarFC = () => {
+  const C = certCargar();
+  const lista = C.ECF.filter(f => certEsRfce(f) && C.res[f.ENCF]?.xml);
+  if (!lista.length) return toast('Primero envía los resúmenes de consumo (RFCE).', 'error');
+  lista.forEach((f, i) => setTimeout(() => download(`${f.RNCEmisor}${f.ENCF}.xml`, C.res[f.ENCF].xml, 'text/xml'), i * 500));
+  toast(`Descargando ${lista.length} XML. Súbelos en el portal, sección "Facturas de consumo < 250Mil".`, 'ok');
+};
+A.certLimpiar = () => confirmar('Quitar set de pruebas', 'Se borrarán de este navegador el set cargado y sus resultados. ¿Continuar?', () => {
+  try { localStorage.removeItem(certKey()); } catch (e) { }
+  CERT = null; route();
+}, { okText: 'Quitar' });
 
 /* =========================================================
    FACTURA — formulario
