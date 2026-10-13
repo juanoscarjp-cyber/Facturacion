@@ -1431,7 +1431,8 @@ A.simPDFs = async () => {
   busy(true, 'Generando representaciones impresas…');
   try {
     await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');
-    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
+    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
     const caja = document.createElement('div');
     // Ancho = área imprimible de una hoja carta con márgenes de 10 mm (215.9 − 20 = 195.9 mm ≈ 740 px)
     // En la esquina (0,0) detrás de la página: fuera de pantalla html2canvas recorta mal el contenido.
@@ -1446,11 +1447,14 @@ A.simPDFs = async () => {
       await Promise.all([...caja.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
       const doc = caja.firstElementChild;
       doc.style.width = '740px'; doc.style.boxSizing = 'border-box';
-      const blob = await html2pdf().set({
-        margin: 10, image: { type: 'jpeg', quality: 0.9 },
-        html2canvas: { scale: 2, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
-      }).from(doc).outputPdf('blob');
+      // Se captura el documento completo y se escala al área imprimible: no depende del ancho de la pantalla.
+      const canvas = await html2canvas(doc, { scale: 2, backgroundColor: '#ffffff', width: doc.scrollWidth, height: doc.scrollHeight, windowWidth: Math.max(1200, doc.scrollWidth), scrollX: 0, scrollY: 0 });
+      const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'letter', orientation: 'portrait' });
+      const margen = 10, anchoUtil = 215.9 - 2 * margen, altoUtil = 279.4 - 2 * margen;
+      let w = anchoUtil, h = canvas.height * anchoUtil / canvas.width;
+      if (h > altoUtil) { w = w * altoUtil / h; h = altoUtil; }
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', margen, margen, w, h);
+      const blob = pdf.output('blob');
       total += blob.size;
       const etiqueta = campo.includes('>=') ? '32 (250 mil o mas)' : campo.includes('<') ? '32 (menos de 250 mil)' : campo;
       const nombre = `RI tipo ${etiqueta} - ${f.ncf}.pdf`;
