@@ -1219,7 +1219,7 @@ function renderForm(v = $('#view')) {
     if (!seq) seqMsg = `<div class="alert err">No hay secuencia activa para ${d.tipo}. <a href="#/empresas" style="text-decoration:underline">Configurar</a></div>`;
     else if (seq.vencida) seqMsg = `<div class="alert err">La secuencia ${d.tipo} está vencida (${fdate(seq.vence)}).</div>`;
     else if (seq.restantes === 0) seqMsg = `<div class="alert err">La secuencia ${d.tipo} está agotada.</div>`;
-    else seqMsg = `<div class="muted small">Próximo NCF: <span class="mono">${d.tipo}${pad(Math.max(num(seq.actual) + 1, num(seq.desde)), 8)}</span>${seq.restantes !== Infinity ? ` · quedan ${seq.restantes}` : ''}</div>`;
+    else seqMsg = `<div class="muted small">Próximo ${esECF(d.tipo) ? 'e-NCF' : 'NCF'}: <span class="mono">${d.tipo}${pad(Math.max(num(seq.actual) + 1, num(seq.desde)), esECF(d.tipo) ? 10 : 8)}</span>${seq.restantes !== Infinity ? ` · quedan ${seq.restantes.toLocaleString('en-US')}` : ''}</div>`;
   }
   const cli = d.clienteId ? getC(d.clienteId) : null;
   const needRNC = NCF_TIPOS[d.tipo]?.requiereRNC;

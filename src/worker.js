@@ -165,14 +165,20 @@ async function emitirECF(env, jwt, { facturaId }) {
     }),
   };
 
-  let res;
+  let res, xmlRfce;
+  // Si el envío falla, se guardan igual los XML firmados (sin estado) para poder revisarlos y reenviar.
+  const fallo = async err => {
+    await guardarEstado(jwt, facturaId, { ...base, xmlRfce, estado: '', error: String(err.message || err) }).catch(() => { });
+    throw err;
+  };
   if (rfce) {
     const rf = construirRFCE({ ecfData: data, codigoSeguridad });
     const firmado = await signTree(rf, s.privateKey, s.cert);
-    const d = await enviarRFCE(s.ambiente, token, firmado.xml, fileName);
+    xmlRfce = firmado.xml;
+    const d = await enviarRFCE(s.ambiente, token, firmado.xml, fileName).catch(fallo);
     res = { ...base, xmlRfce: firmado.xml, codigo: d.codigo, estado: d.estado || ESTADOS[d.codigo] || 'Desconocido', mensajes: mensajes(d), secuenciaUtilizada: d.secuenciaUtilizada !== false };
   } else {
-    const d = await enviarECF(s.ambiente, token, xml, fileName);
+    const d = await enviarECF(s.ambiente, token, xml, fileName).catch(fallo);
     res = { ...base, trackId: d.trackId, estado: 'En Proceso', codigo: 3, mensajes: [] };
     for (const espera of [400, 900, 1500, 2500]) {
       await new Promise(r => setTimeout(r, espera));

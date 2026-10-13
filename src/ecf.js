@@ -366,9 +366,13 @@ export const AMBIENTES = {
   ecf: { nombre: 'Producción', ecf: 'https://ecf.dgii.gov.do/ecf', fc: 'https://fc.dgii.gov.do/ecf' },
 };
 
+const UA = 'FacturacionRD/1.0 (+https://facturacion-rd.ipmplaza.workers.dev)';
 async function leerRespuesta(r) {
   const t = await r.text();
-  try { return JSON.parse(t); } catch { return { raw: t }; }
+  try { return JSON.parse(t); } catch {
+    const limpio = t.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    return { raw: `HTTP ${r.status}${limpio ? ' · ' + limpio.slice(0, 300) : ''}` };
+  }
 }
 function multipart(xml, fileName) {
   const fd = new FormData();
@@ -382,12 +386,12 @@ export async function obtenerToken(ambiente, privateKey, certB64, cacheKey = '')
   const hit = tokens.get(key);
   if (hit && hit.exp - Date.now() > 120e3) return hit.token;
   const base = AMBIENTES[ambiente].ecf + '/autenticacion/api/autenticacion';
-  const r1 = await fetch(base + '/semilla', { headers: { accept: '*/*' } });
+  const r1 = await fetch(base + '/semilla', { headers: { 'user-agent': UA, accept: '*/*' } });
   if (!r1.ok) throw new Error(`DGII semilla: HTTP ${r1.status}`);
   const semilla = parseXml(await r1.text());
   if (!semilla) throw new Error('DGII: respuesta de semilla no válida');
   const { xml } = await signTree(semilla, privateKey, certB64);
-  const r2_ = await fetch(base + '/validarsemilla', { method: 'POST', headers: { accept: 'application/json' }, body: multipart(xml, 'semilla.xml') });
+  const r2_ = await fetch(base + '/validarsemilla', { method: 'POST', headers: { 'user-agent': UA, accept: 'application/json' }, body: multipart(xml, 'semilla.xml') });
   const d = await leerRespuesta(r2_);
   if (!r2_.ok || !d.token) throw new Error('DGII autenticación: ' + (d.mensaje || d.message || d.error || d.raw || `HTTP ${r2_.status}`));
   tokens.set(key, { token: d.token, exp: Date.parse(d.expira) || Date.now() + 50 * 60e3 });
@@ -396,7 +400,7 @@ export async function obtenerToken(ambiente, privateKey, certB64, cacheKey = '')
 
 export async function enviarECF(ambiente, token, xml, fileName) {
   const r = await fetch(AMBIENTES[ambiente].ecf + '/recepcion/api/facturaselectronicas', {
-    method: 'POST', headers: { accept: 'application/json', authorization: 'Bearer ' + token }, body: multipart(xml, fileName),
+    method: 'POST', headers: { 'user-agent': UA, accept: 'application/json', authorization: 'Bearer ' + token }, body: multipart(xml, fileName),
   });
   const d = await leerRespuesta(r);
   if (!r.ok || !d.trackId) throw new Error('DGII recepción: ' + ([d.error, d.mensaje, d.message, d.raw].filter(Boolean).join(' · ') || `HTTP ${r.status}`));
@@ -405,7 +409,7 @@ export async function enviarECF(ambiente, token, xml, fileName) {
 
 export async function enviarRFCE(ambiente, token, xml, fileName) {
   const r = await fetch(AMBIENTES[ambiente].fc + '/recepcionfc/api/recepcion/ecf', {
-    method: 'POST', headers: { accept: 'application/json', authorization: 'Bearer ' + token }, body: multipart(xml, fileName),
+    method: 'POST', headers: { 'user-agent': UA, accept: 'application/json', authorization: 'Bearer ' + token }, body: multipart(xml, fileName),
   });
   const d = await leerRespuesta(r);
   if (!r.ok && !d.estado) throw new Error('DGII recepción RFCE: ' + (d.mensaje || d.message || d.raw || `HTTP ${r.status}`));
@@ -414,7 +418,7 @@ export async function enviarRFCE(ambiente, token, xml, fileName) {
 
 export async function consultarResultado(ambiente, token, trackId) {
   const r = await fetch(AMBIENTES[ambiente].ecf + '/consultaresultado/api/consultas/estado?trackid=' + encodeURIComponent(trackId), {
-    headers: { accept: 'application/json', authorization: 'Bearer ' + token },
+    headers: { 'user-agent': UA, accept: 'application/json', authorization: 'Bearer ' + token },
   });
   const d = await leerRespuesta(r);
   if (!r.ok) throw new Error('DGII consulta: ' + (d.mensaje || d.message || d.raw || `HTTP ${r.status}`));
