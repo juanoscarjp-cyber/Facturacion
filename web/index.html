@@ -1394,6 +1394,28 @@ A.simTodo = async () => {
   const fallos = pend.filter(p => !ok(C.sim[p.k])).length;
   toast(fallos ? `${fallos} con error o rechazo. Revisa el detalle.` : 'Simulación completa: todos aceptados.', fallos ? 'error' : 'ok');
 };
+// RNC con el que se hizo la postulación: el que trae el set de pruebas del Paso 2 (cargado en cualquier empresa)
+function rncCertificacion() {
+  for (const k of Object.keys(localStorage)) {
+    if (!k.startsWith('cert_set_')) continue;
+    try { const s = JSON.parse(localStorage.getItem(k)); const r = s?.ECF?.[0]?.RNCEmisor; if (r) return digits(r); } catch (e) { }
+  }
+  return '';
+}
+A.simAnularRechazados = () => {
+  const C = certCargar(), sim = C.sim || {};
+  const lista = SIM_PLAN.map(p => sim[p.k]).filter(s => s?.facturaId && getF(s.facturaId) && !['Aceptado', 'Aceptado Condicional'].includes(s.estado) && getF(s.facturaId).estado !== 'anulada');
+  if (!lista.length) return toast('No hay comprobantes rechazados de la simulación por anular.');
+  confirmar('Anular comprobantes rechazados', `Se anularán ${lista.length} comprobantes de la simulación que la DGII rechazó (motivo 04, corrección de la información) y se reiniciará la simulación de esta empresa. ¿Continuar?`, async () => {
+    busy(true, 'Anulando…');
+    let n = 0;
+    for (const s of lista) {
+      try { await mutateFactura(s.facturaId, d => { d.estado = 'anulada'; d.anulada = { fecha: today(), motivo: '04', por: SESSION.user.email, nota: 'Simulación rechazada por la DGII' }; }); n++; } catch (e) { }
+    }
+    C.sim = {}; certGuardar();
+    busy(false); toast(`${n} comprobantes anulados.`, 'ok'); route(true);
+  }, { okText: 'Anular' });
+};
 A.simFila = async k => {
   busy(true, 'Enviando ' + k + '…');
   try { await simProcesar(SIM_PLAN.find(p => p.k === k)); } finally { busy(false); route(true); }
@@ -1413,16 +1435,23 @@ function simHTML() {
     C._amb = null;
     sb.from('ecf_config').select('ambiente').eq('empresa_id', e.id).then(r => { C._amb = r.data?.[0]?.ambiente || ''; certGuardar(); if (parseHash().parts[0] === 'certificacion') route(true); });
   }
-  const listo = !faltan.length && C._amb === 'certecf';
+  const rncEmp = digits(e.rnc), rncCert = rncCertificacion();
+  const rncMal = rncCert && rncCert !== rncEmp;
+  const listo = !faltan.length && C._amb === 'certecf' && !rncMal;
   const hechos = SIM_PLAN.filter(p => okS(sim[p.k])).length;
+  const rechazados = SIM_PLAN.filter(p => sim[p.k]?.facturaId && !okS(sim[p.k]) && getF(sim[p.k].facturaId)?.estado !== 'anulada').length;
   return `<div class="card mb"><div class="card-h">Paso 4 · Pruebas de simulación<span class="sp"></span><span class="pill ${hechos === SIM_PLAN.length ? 'green' : 'gray'}">${hechos}/${SIM_PLAN.length} aceptados</span></div><div class="card-b">
     <p class="small" style="margin-top:0">Emite desde esta app los ${SIM_PLAN.length} comprobantes que pide la DGII (4×E31, 2×E32 ≥ 250 mil, 4×E32 &lt; 250 mil, 2×E41, 2×E43, 2×E44, 2×E45, 2×E46, 2×E47, 1×E33 y 2×E34) con clientes y proveedores de prueba de la DGII. Quedan guardados en <b>Facturas</b> para imprimir su representación impresa.</p>
+    ${rncMal ? `<div class="alert err mb"><div>Esta empresa tiene el RNC <b>${esc(fmtId(rncEmp))}</b>, pero tu proceso de certificación es con el RNC <b>${esc(fmtId(rncCert))}</b>.
+      Cambia a la empresa con ese RNC (selector de empresa, arriba a la izquierda) o créala en <b>Empresas</b> con su certificado.</div></div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="pill ${rncMal ? 'red' : 'green'}">RNC emisor: ${esc(fmtId(rncEmp) || '—')}</span>
       <span class="pill ${C._amb === 'certecf' ? 'green' : 'red'}">Ambiente: ${C._amb ? esc(AMBIENTES_ECF[C._amb] || C._amb) : 'sin configurar'}</span>
       <span class="pill ${faltan.length ? 'red' : 'green'}">${faltan.length ? 'Faltan secuencias: ' + faltan.join(', ') : 'Secuencias e-NCF listas'}</span>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${!listo ? `<button class="btn" onclick="A.simPreparar()">Preparar ambiente y secuencias</button>` : ''}
+      ${!listo && !rncMal ? `<button class="btn" onclick="A.simPreparar()">Preparar ambiente y secuencias</button>` : ''}
+      ${rechazados ? `<button class="btn danger" onclick="A.simAnularRechazados()">${icon('ban')} Anular ${rechazados} rechazados</button>` : ''}
       <button class="btn primary" ${listo ? '' : 'disabled'} onclick="A.simTodo()">${icon('receipt')} Generar y enviar simulación</button>
       <button class="btn" onclick="A.simXMLConsumo()">${icon('down')} XML de consumo &lt; 250 mil</button>
     </div>
