@@ -332,6 +332,7 @@ function errMsg(err) {
   if (/Password should be at least/i.test(m)) return 'La contraseña debe tener al menos 6 caracteres.';
   if (/facturas_empresa_numero_key/.test(m)) return 'Ya existe una factura con ese número. Ajusta el "Próximo número" en Empresas.';
   if (/facturas_empresa_ncf_key/.test(m)) return 'Ese NCF ya fue usado. Revisa el "Último usado" de la secuencia en Empresas.';
+  if (/secuencias_tipo_check/.test(m)) return 'Falta ejecutar supabase/ecf3.sql en Supabase (tipos e-CF nuevos).';
   if (/row-level security|permission denied/i.test(m)) return 'No tienes permiso para esta acción.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Sin conexión con el servidor. Revisa tu internet.';
   if (/relation .* does not exist|Could not find the (table|function)/i.test(m)) return 'La base de datos no está configurada. Ejecuta supabase/schema.sql en Supabase.';
@@ -1231,7 +1232,8 @@ function viewCertificacion(v) {
   const grupo = { 1: '1 · Comprobantes', 2: '2 · Consumo < RD$250 mil (resumen RFCE)', 3: '3 · Notas de débito y crédito' };
   v.innerHTML = `
   <div class="page-head"><h1>Certificación DGII</h1></div>
-  <div class="alert info mb"><div>Etapa <b>"Pruebas de datos e-CF"</b>: descarga el set de pruebas en el portal de certificación de la DGII y cárgalo aquí.
+  ${simHTML()}
+  <div class="alert info mb"><div>Etapa <b>"Pruebas de datos e-CF"</b> (Paso 2): descarga el set de pruebas en el portal de certificación de la DGII y cárgalo aquí.
     El sistema genera cada comprobante con esos datos, lo firma con el certificado de <b>${esc(e.nombre)}</b> y lo envía en este orden: comprobantes, resúmenes de consumo y, al final, notas de débito y crédito.</div></div>
   <div class="card mb"><div class="card-b" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
     <div class="field"><label>Set de pruebas (.xlsx)</label><input type="file" accept=".xlsx" onchange="A.certArchivo(this)"></div>
@@ -1276,6 +1278,163 @@ function viewCertificacion(v) {
   })() : ''}`;
 }
 const certOkA = r => r && (String(r.codigo) === '1' || /aprobada|aceptad/i.test(r.estado || ''));
+
+/* ---------- Paso 4: simulación (emite comprobantes reales de la app hacia CerteCF) ---------- */
+const SIM_TIPOS = ['E31', 'E32', 'E33', 'E34', 'E41', 'E43', 'E44', 'E45', 'E46', 'E47'];
+const simIt = (d, c, p, i, t = 'bien') => ({ d, c, p, i, t });
+// Plan exigido por la DGII: 4×31, 2×32≥250mil, 4×32<250mil (RFCE), 2×41, 2×43, 2×44, 2×45, 2×46, 2×47, 1×33, 2×34
+const SIM_PLAN = [
+  { k: 'E31-1', tipo: 'E31', cli: 'C03', items: [simIt('Mesas industriales', 5, 3500, 18), simIt('Instalación', 1, 2500, 18, 'servicio')] },
+  { k: 'E31-2', tipo: 'E31', cli: 'C03', credito: true, items: [simIt('Zapatos de seguridad', 20, 1850, 18), simIt('Botas de goma', 10, 975, 16)] },
+  { k: 'E31-3', tipo: 'E31', cli: 'C03', items: [simIt('Arroz selecto 125 lb', 30, 4200, 0), simIt('Aceite vegetal galón', 12, 890, 18)] },
+  { k: 'E31-4', tipo: 'E31', cli: 'C03', metodo: 'Tarjeta', items: [simIt('Queso gouda importado', 3, 425, 18)] },
+  { k: 'E32-1', tipo: 'E32', cli: 'C03', items: [simIt('Block de 6 pulgadas', 9000, 32, 18), simIt('Cemento gris funda', 220, 690, 18)] },
+  { k: 'E32-2', tipo: 'E32', cli: 'C03', metodo: 'Transferencia', items: [simIt('Lápices caja 12', 1800, 175, 18), simIt('Resmas papel carta', 500, 285, 18)] },
+  { k: 'E32-3', tipo: 'E32', cli: 'C03', items: [simIt('Cargador universal', 2, 850, 18)] },
+  { k: 'E32-4', tipo: 'E32', cli: 'C03', metodo: 'Tarjeta', items: [simIt('Estufa 4 hornillas', 1, 18500, 18)] },
+  { k: 'E32-5', tipo: 'E32', cli: 'C03', items: [simIt('Nevera 14 pies', 1, 42000, 18), simIt('Regulador de voltaje', 1, 2750, 18)] },
+  { k: 'E32-6', tipo: 'E32', cli: 'C03', metodo: 'Tarjeta', items: [simIt('Celular gama media', 2, 15500, 18)] },
+  { k: 'E41-1', tipo: 'E41', cli: 'P11', ret: { itbis: 100, isr: 10 }, items: [simIt('Servicio profesional de plomería', 2, 4500, 18, 'servicio')] },
+  { k: 'E41-2', tipo: 'E41', cli: 'P11', ret: { itbis: 30, isr: 2 }, items: [simIt('Compra de mango a productor', 300, 25, 0), simIt('Transporte de mercancía', 1, 3000, 18, 'servicio')] },
+  { k: 'E43-1', tipo: 'E43', items: [simIt('Arreglo de neumático', 1, 350, 0, 'servicio')] },
+  { k: 'E43-2', tipo: 'E43', items: [simIt('Gastos de oficina', 1, 1850, 0)] },
+  { k: 'E44-1', tipo: 'E44', cli: 'C03', items: [simIt('Galletas caja 24 unidades', 25, 1200, 0)] },
+  { k: 'E44-2', tipo: 'E44', cli: 'C03', credito: true, items: [simIt('Refrescos caja 24/12oz', 40, 900, 0)] },
+  { k: 'E45-1', tipo: 'E45', cli: 'C03', credito: true, items: [simIt('Lápices caja 12', 300, 175, 18), simIt('Folders manila caja', 40, 650, 18)] },
+  { k: 'E45-2', tipo: 'E45', cli: 'C03', items: [simIt('Mantenimiento de aire acondicionado', 4, 3500, 18, 'servicio')] },
+  { k: 'E46-1', tipo: 'E46', cli: 'C03', credito: true, items: [simIt('Aguacate criollo (caja)', 100, 1800, 0)] },
+  { k: 'E46-2', tipo: 'E46', cli: 'C03', items: [simIt('Sillas de madera', 150, 450, 0)] },
+  { k: 'E47-1', tipo: 'E47', cli: 'EXT', metodo: 'Transferencia', ret: { isr: 27 }, items: [simIt('Asesoría contable', 1, 115000, 0, 'servicio')] },
+  { k: 'E47-2', tipo: 'E47', cli: 'EXT', metodo: 'Transferencia', ret: { isr: 27 }, items: [simIt('Asesoría legal por hora', 24, 1500, 0, 'servicio')] },
+  { k: 'E33-1', tipo: 'E33', afecta: 'E31-1', notas: 'Flete no incluido en la factura', items: [simIt('Flete de entrega', 1, 1500, 18, 'servicio')] },
+  { k: 'E34-1', tipo: 'E34', afecta: 'E31-2', notas: 'Devolución parcial de mercancía', items: [simIt('Zapatos de seguridad', 2, 1850, 18)] },
+  { k: 'E34-2', tipo: 'E34', afecta: 'E31-4', notas: 'Anulación total de la factura', items: 'TODO' },
+];
+const SIM_PARTES = {
+  C03: { nombre: 'DOCUMENTOS ELECTRONICOS DE 03', rnc: '131880681' },
+  P11: { nombre: 'DOCUMENTOS ELECTRONICOS DE 11', rnc: '533445861' },
+  EXT: { nombre: 'DOCUMENTOS ELECTRONICOS DE 03 (EXTERIOR)', idExtranjero: '350555123' },
+};
+async function simParte(clave) {
+  const p = SIM_PARTES[clave];
+  let c = clientes().find(x => (p.rnc && x.rnc === p.rnc) || (p.idExtranjero && x.idExtranjero === p.idExtranjero));
+  if (c) return c;
+  c = { id: uid(), empresaId: DB.activeId, nombre: p.nombre, rnc: p.rnc || '', idExtranjero: p.idExtranjero || '', direccion: 'Santo Domingo, República Dominicana', telefono: '', email: '', creado: new Date().toISOString() };
+  chk(await sb.from('clientes').upsert({ id: c.id, empresa_id: DB.activeId, data: stripIds(c) }));
+  putCache('clientes', c);
+  return c;
+}
+// Emite con el mismo flujo de la app: RPC (asigna e-NCF) + Worker (firma y envía a la DGII)
+async function simEmitir(p, sim) {
+  const e = emp();
+  const cli = p.cli ? await simParte(p.cli) : null;
+  const afectada = p.afecta ? getF(sim[p.afecta]?.facturaId) : null;
+  if (p.afecta && !afectada) throw new Error(`Primero debe emitirse ${p.afecta}.`);
+  const items = p.items === 'TODO' ? clone(afectada.items)
+    : p.items.map(x => ({ productoId: '', sku: '', descripcion: x.d, cantidad: x.c, precio: x.p, descuento: 0, itbis: x.i, tipo: x.t }));
+  const fecha = today();
+  const parte = afectada ? afectada.cliente : cli ? { nombre: cli.nombre, rnc: cli.rnc || '', idExtranjero: cli.idExtranjero || '', direccion: cli.direccion || '', telefono: '', email: '' } : { nombre: p.tipo === 'E43' ? '' : 'Consumidor Final' };
+  const data = {
+    clienteId: afectada ? afectada.clienteId : cli ? cli.id : '', cliente: parte, fecha,
+    condicion: p.credito ? 'credito' : 'contado', diasCredito: p.credito ? 30 : 0, vencimiento: p.credito ? addDays(fecha, 30) : '',
+    items, propina: false, notas: p.notas || '', facturaAfectadaId: afectada ? afectada.id : '', retencion: p.ret,
+    creada: new Date().toISOString(), creadaPor: SESSION.user.email, pagos: [], estado: 'emitida', simulacion: p.k,
+  };
+  if (!p.credito && !esRef(p.tipo)) data.pagos.push({ id: uid(), fecha, metodo: p.metodo || 'Efectivo', monto: calc(data).total, referencia: '', por: SESSION.user.email });
+  const row = chk(await sb.rpc('emitir_factura', { p_empresa: e.id, p_tipo: p.tipo, p_data: data }));
+  const f = fromFacturaRow(row);
+  putCache('facturas', f);
+  return f;
+}
+async function simProcesar(p) {
+  const C = certCargar();
+  C.sim = C.sim || {};
+  const s = C.sim[p.k] = C.sim[p.k] || {};
+  try {
+    if (!s.facturaId || !getF(s.facturaId)) {
+      const f = await simEmitir(p, C.sim);
+      Object.assign(s, { facturaId: f.id, ncf: f.ncf, numero: f.numero, error: '' });
+      certGuardar();
+    }
+    const { ecf } = await apiECF('emitir', { facturaId: s.facturaId });
+    const f = getF(s.facturaId); if (f) f.ecf = ecf;
+    Object.assign(s, { estado: ecf.estado, mensajes: ecf.mensajes || [], rfce: ecf.rfce, error: '' });
+  } catch (err) { s.error = errMsg(err); }
+  certGuardar();
+}
+A.simPreparar = async () => {
+  const e = emp();
+  if (!esAdmin()) return toast('Solo el dueño o un administrador puede configurar las secuencias.', 'error');
+  busy(true, 'Configurando secuencias y ambiente de certificación…');
+  try {
+    const secuencias = { ...(e.secuencias || {}) };
+    for (const t of SIM_TIPOS) {
+      const s = secuencias[t] || {};
+      secuencias[t] = { activo: true, desde: 1, hasta: 10000000, actual: Math.max(num(s.actual), 100), vence: SIN_VENCE.includes(t) ? '' : '2028-12-31' };
+    }
+    chk(await sb.from('secuencias').upsert(seqRows(e.id, secuencias), { onConflict: 'empresa_id,tipo' }));
+    await apiECF('certificado', { empresaId: e.id, ambiente: 'certecf' });
+    await reloadEmpresa(e.id);
+    certCargar()._amb = 'certecf'; certGuardar();
+    toast('Listo: ambiente CerteCF y secuencias e-NCF desde el 101.', 'ok');
+  } catch (err) { toast(errMsg(err), 'error'); }
+  finally { busy(false); route(true); }
+};
+A.simTodo = async () => {
+  const C = certCargar(); C.sim = C.sim || {};
+  const ok = s => s && ['Aceptado', 'Aceptado Condicional'].includes(s.estado);
+  const pend = SIM_PLAN.filter(p => !ok(C.sim[p.k]) && C.sim[p.k]?.estado !== 'En Proceso');
+  if (!pend.length) return toast('Todos los comprobantes de la simulación ya fueron aceptados.');
+  if (!confirm(`Se emitirán ${pend.length} comprobantes en el ambiente de CERTIFICACIÓN de la DGII. ¿Continuar?`)) return;
+  for (let i = 0; i < pend.length; i++) {
+    busy(true, `Simulación ${i + 1} de ${pend.length}: ${pend[i].k}…`);
+    await simProcesar(pend[i]);
+  }
+  busy(false); route(true);
+  const fallos = pend.filter(p => !ok(C.sim[p.k])).length;
+  toast(fallos ? `${fallos} con error o rechazo. Revisa el detalle.` : 'Simulación completa: todos aceptados.', fallos ? 'error' : 'ok');
+};
+A.simFila = async k => {
+  busy(true, 'Enviando ' + k + '…');
+  try { await simProcesar(SIM_PLAN.find(p => p.k === k)); } finally { busy(false); route(true); }
+};
+A.simXMLConsumo = () => {
+  const C = certCargar(), rnc = digits(emp().rnc);
+  const lista = SIM_PLAN.filter(p => C.sim?.[p.k]?.rfce).map(p => getF(C.sim[p.k].facturaId)).filter(f => f?.ecf?.xml);
+  if (!lista.length) return toast('Aún no hay facturas de consumo < 250 mil aceptadas.', 'error');
+  lista.forEach((f, i) => setTimeout(() => download(`${rnc}${f.ncf}.xml`, f.ecf.xml, 'text/xml'), i * 500));
+  toast(`Descargando ${lista.length} XML para subir en el portal ("Facturas de consumo < 250Mil").`, 'ok');
+};
+function simHTML() {
+  const C = certCargar(), e = emp(), sim = C.sim || {};
+  const okS = s => s && ['Aceptado', 'Aceptado Condicional'].includes(s.estado);
+  const faltan = SIM_TIPOS.filter(t => !seqInfo(e, t));
+  if (C._amb === undefined) {
+    C._amb = null;
+    sb.from('ecf_config').select('ambiente').eq('empresa_id', e.id).then(r => { C._amb = r.data?.[0]?.ambiente || ''; certGuardar(); if (parseHash().parts[0] === 'certificacion') route(true); });
+  }
+  const listo = !faltan.length && C._amb === 'certecf';
+  const hechos = SIM_PLAN.filter(p => okS(sim[p.k])).length;
+  return `<div class="card mb"><div class="card-h">Paso 4 · Pruebas de simulación<span class="sp"></span><span class="pill ${hechos === SIM_PLAN.length ? 'green' : 'gray'}">${hechos}/${SIM_PLAN.length} aceptados</span></div><div class="card-b">
+    <p class="small" style="margin-top:0">Emite desde esta app los ${SIM_PLAN.length} comprobantes que pide la DGII (4×E31, 2×E32 ≥ 250 mil, 4×E32 &lt; 250 mil, 2×E41, 2×E43, 2×E44, 2×E45, 2×E46, 2×E47, 1×E33 y 2×E34) con clientes y proveedores de prueba de la DGII. Quedan guardados en <b>Facturas</b> para imprimir su representación impresa.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="pill ${C._amb === 'certecf' ? 'green' : 'red'}">Ambiente: ${C._amb ? esc(AMBIENTES_ECF[C._amb] || C._amb) : 'sin configurar'}</span>
+      <span class="pill ${faltan.length ? 'red' : 'green'}">${faltan.length ? 'Faltan secuencias: ' + faltan.join(', ') : 'Secuencias e-NCF listas'}</span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${!listo ? `<button class="btn" onclick="A.simPreparar()">Preparar ambiente y secuencias</button>` : ''}
+      <button class="btn primary" ${listo ? '' : 'disabled'} onclick="A.simTodo()">${icon('receipt')} Generar y enviar simulación</button>
+      <button class="btn" onclick="A.simXMLConsumo()">${icon('down')} XML de consumo &lt; 250 mil</button>
+    </div>
+    ${Object.keys(sim).length ? `<div class="tbl-wrap mt"><table><thead><tr><th>Caso</th><th>Factura</th><th>e-NCF</th><th>Estado DGII</th><th>Detalle</th><th></th></tr></thead><tbody>
+      ${SIM_PLAN.filter(p => sim[p.k]).map(p => { const s = sim[p.k]; return `<tr><td class="mono small">${p.k}</td>
+        <td>${s.facturaId ? `<a href="#/facturas/${s.facturaId}" style="text-decoration:underline">${esc(s.numero || '')}</a>` : '—'}</td><td class="mono small">${esc(s.ncf || '')}</td>
+        <td>${s.estado ? `<span class="pill ${PILL_ECF[s.estado] || 'gray'}">${esc(s.estado)}</span>` : s.error ? '<span class="pill red">Error</span>' : '<span class="pill gray">Pendiente</span>'}${s.rfce ? '<span class="sub">RFCE · sube el XML al portal</span>' : ''}</td>
+        <td class="small" style="max-width:360px">${s.error ? `<span style="color:var(--red)">${esc(s.error)}</span>` : (s.mensajes || []).map(esc).join('<br>')}</td>
+        <td class="right">${!okS(s) ? `<button class="btn sm" onclick="A.simFila('${p.k}')">Reintentar</button>` : ''}</td></tr>`; }).join('')}
+    </tbody></table></div>` : ''}
+  </div></div>`;
+}
 async function certProcesarA(a) {
   const C = certCargar();
   C.resA = C.resA || {};
