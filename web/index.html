@@ -1416,6 +1416,19 @@ A.simAnularRechazados = () => {
     busy(false); toast(`${n} comprobantes anulados.`, 'ok'); route(true);
   }, { okText: 'Anular' });
 };
+// Si la DGII reinicia las pruebas, se empieza de nuevo con e-NCF nuevos (las secuencias nunca retroceden).
+A.simReiniciar = () => {
+  const C = certCargar(), sim = C.sim || {};
+  const previos = SIM_PLAN.map(p => sim[p.k]).filter(s => s?.facturaId && getF(s.facturaId) && getF(s.facturaId).estado !== 'anulada');
+  confirmar('Reiniciar simulación', `Úsalo cuando la DGII reinicie las pruebas de simulación. Se marcarán como anulados en la app los ${previos.length} comprobantes del intento anterior y se generarán 25 nuevos con e-NCF que nunca se han usado. ¿Continuar?`, async () => {
+    busy(true, 'Reiniciando…');
+    for (const s of previos) {
+      try { await mutateFactura(s.facturaId, d => { d.estado = 'anulada'; d.anulada = { fecha: today(), motivo: '04', por: SESSION.user.email, nota: 'Simulación reiniciada por la DGII' }; }); } catch (e) { }
+    }
+    C.sim = {}; C.simIntento = (C.simIntento || 1) + 1; certGuardar();
+    busy(false); toast('Simulación reiniciada. Pulsa "Generar y enviar simulación".', 'ok'); route(true);
+  }, { okText: 'Reiniciar' });
+};
 A.simFila = async k => {
   busy(true, 'Enviando ' + k + '…');
   try { await simProcesar(SIM_PLAN.find(p => p.k === k)); } finally { busy(false); route(true); }
@@ -1425,7 +1438,7 @@ A.simXMLConsumo = () => {
   const lista = SIM_PLAN.filter(p => C.sim?.[p.k]?.rfce).map(p => getF(C.sim[p.k].facturaId)).filter(f => f?.ecf?.xml);
   if (!lista.length) return toast('Aún no hay facturas de consumo < 250 mil aceptadas.', 'error');
   lista.forEach((f, i) => setTimeout(() => download(`${rnc}${f.ncf}.xml`, f.ecf.xml, 'text/xml'), i * 500));
-  toast(`Descargando ${lista.length} XML para subir en el portal ("Facturas de consumo < 250Mil").`, 'ok');
+  toast(`Descargando ${lista.length} XML (${lista.map(f => f.ncf).join(', ')}). Sube SOLO estos en el portal, sección "Facturas de consumo < 250Mil".`, 'ok');
 };
 function simHTML() {
   const C = certCargar(), e = emp(), sim = C.sim || {};
@@ -1452,6 +1465,7 @@ function simHTML() {
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${!listo && !rncMal ? `<button class="btn" onclick="A.simPreparar()">Preparar ambiente y secuencias</button>` : ''}
       ${rechazados ? `<button class="btn danger" onclick="A.simAnularRechazados()">${icon('ban')} Anular ${rechazados} rechazados</button>` : ''}
+      ${Object.keys(sim).length ? `<button class="btn" onclick="A.simReiniciar()">${icon('undo')} Reiniciar simulación</button>` : ''}
       <button class="btn primary" ${listo ? '' : 'disabled'} onclick="A.simTodo()">${icon('receipt')} Generar y enviar simulación</button>
       <button class="btn" onclick="A.simXMLConsumo()">${icon('down')} XML de consumo &lt; 250 mil</button>
     </div>
