@@ -1,0 +1,9 @@
+{
+  // Cloudflare Worker que sirve la app estática de la carpeta web/
+  "name": "facturacion-rd",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./web",
+    "not_found_handling": "single-page-application"
+  }
+}

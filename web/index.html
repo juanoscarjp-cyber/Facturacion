@@ -1,0 +1,2003 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Facturación RD</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --bg:#f6f6f8; --card:#fff; --border:#e6e7eb; --border2:#d6d8de; --text:#14151a; --muted:#6b7080; --soft:#f2f3f6;
+  --primary:#1f1b4d; --primary-h:#2d2870; --accent:#e11d48;
+  --green:#15803d; --green-bg:#e8f5ec; --blue:#1d4ed8; --blue-bg:#e8eefc; --amber:#b45309; --amber-bg:#fdf3e1;
+  --red:#b91c1c; --red-bg:#fdecec; --gray:#555b66; --gray-bg:#eef0f3; --purple:#6d28d9; --purple-bg:#f1ebfd;
+  --radius:12px; --shadow:0 1px 2px rgba(16,24,40,.05);
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+a{color:inherit;text-decoration:none}
+button,input,select,textarea{font:inherit;color:inherit}
+#app{display:flex;min-height:100vh}
+/* Sidebar */
+#sidebar{width:240px;flex:0 0 240px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:16px 16px 12px}
+.logo{width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:18px;flex:0 0 auto}
+.brand b{display:block;font-size:14px}.brand small{color:var(--muted);font-size:11px}
+.emp-switch{margin:0 12px 10px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--soft)}
+.emp-switch label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:2px}
+.emp-switch select{width:100%;border:0;background:transparent;font-weight:600;outline:none;cursor:pointer}
+nav{padding:4px 8px;display:flex;flex-direction:column;gap:2px;flex:1;overflow:auto}
+nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;color:#3a3f4b;font-weight:500}
+nav a:hover{background:var(--soft)}
+nav a.active{background:var(--primary);color:#fff}
+nav a svg{width:18px;height:18px;flex:0 0 auto}
+.side-foot{padding:12px 16px;color:var(--muted);font-size:11px;border-top:1px solid var(--border)}
+/* Main */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{height:56px;display:flex;align-items:center;gap:12px;padding:0 24px;background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
+.topbar .crumbs{color:var(--muted);font-size:13px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar .crumbs b{color:var(--text);font-weight:600}
+.btn.menu-btn{display:none}
+.avatar{width:32px;height:32px;border-radius:8px;background:var(--soft);display:grid;place-items:center;font-weight:600;font-size:12px}
+#view{padding:24px;max-width:1240px;width:100%;margin:0 auto}
+/* Common */
+.page-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.page-head h1{font-size:26px;margin:0;letter-spacing:-.02em;flex:1;min-width:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.page-head h1 .mono{font-family:var(--mono);font-size:22px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 14px;border-radius:10px;border:1px solid var(--border2);background:#fff;cursor:pointer;font-weight:600;font-size:13px;white-space:nowrap}
+.btn:hover{background:var(--soft)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-h)}
+.btn.danger{color:var(--red);border-color:#f2c4c4}
+.btn.danger:hover{background:var(--red-bg)}
+.btn.danger.solid{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:var(--soft)}
+.btn.sm{padding:5px 9px;font-size:12px;border-radius:8px}
+.btn svg{width:16px;height:16px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card-h{padding:14px 18px;border-bottom:1px solid var(--border);font-weight:600;display:flex;align-items:center;gap:8px}
+.card-h .sp{flex:1}
+.card-b{padding:16px 18px}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+.muted{color:var(--muted)}.small{font-size:12px}.mono{font-family:var(--mono)}.right{text-align:right}.nowrap{white-space:nowrap}
+.mt{margin-top:16px}.mb{margin-bottom:16px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.search{flex:1;min-width:220px;position:relative}
+.search input{width:100%;padding:11px 14px 11px 38px;border:1px solid var(--border2);border-radius:12px;background:#fff;outline:none}
+.search input:focus{border-color:var(--primary)}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:17px;height:17px;color:var(--muted)}
+.chip-select{display:flex;align-items:center;gap:6px;border:1px solid var(--border2);border-radius:12px;background:#fff;padding:0 10px}
+.chip-select span{color:var(--muted);font-size:13px;white-space:nowrap}
+.chip-select select,.chip-select input{border:0;background:transparent;padding:10px 2px;font-weight:600;outline:none;cursor:pointer}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;text-align:left;padding:11px 14px;background:#fafafb;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover td{background:#fafafc}
+.tbl-wrap{overflow-x:auto}
+.table-foot{padding:12px 14px;color:var(--muted);font-size:12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.sub{display:block;color:var(--muted);font-size:12px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.green{color:var(--green);background:var(--green-bg)}.pill.blue{color:var(--blue);background:var(--blue-bg)}
+.pill.amber{color:var(--amber);background:var(--amber-bg)}.pill.red{color:var(--red);background:var(--red-bg)}
+.pill.gray{color:var(--gray);background:var(--gray-bg)}.pill.purple{color:var(--purple);background:var(--purple-bg)}
+.tag{display:inline-block;padding:2px 7px;border-radius:6px;background:var(--soft);font-size:11px;font-weight:600;color:#3a3f4b;font-family:var(--mono)}
+.empty{padding:40px 20px;text-align:center;color:var(--muted)}
+/* KPI */
+.kpi{padding:16px 18px}
+.kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.kpi .v{font-size:24px;font-weight:700;letter-spacing:-.02em;margin-top:6px}
+.kpi .d{font-size:12px;color:var(--muted);margin-top:2px}
+/* Detail */
+.kv{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;font-size:13px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;text-align:right;font-weight:500}
+.lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.totals{margin-left:auto;width:min(360px,100%);padding:14px 18px}
+.totals .row{display:flex;justify-content:space-between;padding:4px 0}
+.totals .row.big{font-size:17px;font-weight:700;border-top:1px solid var(--border);margin-top:6px;padding-top:10px}
+.totals .row.due{color:var(--red);font-weight:700}
+/* Forms */
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label{font-size:12px;font-weight:600;color:#3a3f4b}
+.field .hint{font-size:11px;color:var(--muted)}
+input.in,select.in,textarea.in{width:100%;padding:9px 11px;border:1px solid var(--border2);border-radius:9px;background:#fff;outline:none;min-width:0}
+input.in:focus,select.in:focus,textarea.in:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(31,27,77,.08)}
+input.in:disabled,select.in:disabled{background:var(--soft);color:var(--muted)}
+textarea.in{resize:vertical;min-height:70px}
+.fgrid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.check{display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500}
+.check input{width:16px;height:16px;accent-color:var(--primary)}
+.items-tbl td{padding:6px 6px;border-bottom:1px solid var(--border)}
+.items-tbl th{padding:9px 6px}
+.items-tbl input.in,.items-tbl select.in{padding:7px 8px}
+.items-tbl .num{text-align:right}
+.icon-btn{border:0;background:transparent;cursor:pointer;color:var(--muted);padding:6px;border-radius:7px;display:inline-grid;place-items:center}
+.icon-btn:hover{background:var(--red-bg);color:var(--red)}
+.icon-btn svg{width:16px;height:16px}
+.form-layout{display:grid;grid-template-columns:1fr 330px;gap:16px;align-items:start}
+.sticky{position:sticky;top:72px}
+.alert{padding:10px 14px;border-radius:10px;font-size:13px;display:flex;gap:8px;align-items:flex-start}
+.alert.warn{background:var(--amber-bg);color:#7a3f06}.alert.err{background:var(--red-bg);color:#7f1515}.alert.info{background:var(--blue-bg);color:#1e3a8a}
+.section-title{font-size:13px;font-weight:700;margin:18px 0 10px;color:#3a3f4b}
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(15,17,25,.45);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:50;overflow:auto}
+.modal{background:#fff;border-radius:14px;width:min(520px,100%);box-shadow:0 20px 50px rgba(0,0,0,.2);display:flex;flex-direction:column}
+.modal.wide{width:min(880px,100%)}
+.modal-h{padding:16px 20px;border-bottom:1px solid var(--border);font-weight:700;font-size:16px;display:flex;align-items:center}
+.modal-h span{flex:1}
+.modal-b{padding:18px 20px}
+.modal-f{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:#1b1d24;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.2);max-width:90vw}
+.toast.error{background:var(--red)}.toast.ok{background:var(--green)}
+/* Chart */
+.chart svg{width:100%;height:auto;display:block}
+.chart .bar{fill:var(--primary)}.chart .bar2{fill:#c9c6ef}
+.chart text{fill:var(--muted);font-size:11px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+/* Empresa cards */
+.emp-card{padding:18px;display:flex;flex-direction:column;gap:10px}
+.emp-card .top{display:flex;gap:12px;align-items:center}
+.emp-card img,.emp-logo{width:46px;height:46px;border-radius:10px;object-fit:contain;background:var(--soft);display:grid;place-items:center;font-weight:700;color:var(--muted)}
+.seq-tbl input.in{padding:6px 8px}
+.seq-tbl td,.seq-tbl th{padding:6px 6px}
+.onboard{max-width:620px;margin:40px auto;text-align:center}
+.onboard .logo{width:56px;height:56px;font-size:28px;border-radius:14px;margin:0 auto 16px}
+.onboard h1{font-size:28px;margin:0 0 8px;letter-spacing:-.02em}
+.onboard p{color:var(--muted);margin:0 0 22px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;overflow-x:auto}
+.tabs button{border:0;background:transparent;padding:10px 14px;cursor:pointer;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tabs button.active{color:var(--primary);border-bottom-color:var(--primary)}
+/* Auth */
+body.auth-mode #sidebar, body.auth-mode .topbar{display:none}
+.auth-wrap{min-height:calc(100vh - 48px);display:grid;place-items:center}
+.auth-card{width:min(400px,100%);padding:28px}
+.auth-card .logo{margin:0 auto 14px;width:48px;height:48px;font-size:24px;border-radius:12px}
+.auth-card h1{text-align:center;font-size:22px;margin:0 0 4px;letter-spacing:-.02em}
+.auth-card p.sub2{text-align:center;color:var(--muted);margin:0 0 20px}
+.auth-card form{display:flex;flex-direction:column;gap:12px}
+.linkish{background:none;border:0;color:var(--primary);cursor:pointer;text-decoration:underline;padding:0;font-size:13px}
+.avatar{cursor:pointer;border:0}
+#busy{position:fixed;inset:0;background:rgba(255,255,255,.6);z-index:90;display:none;place-items:center;font-weight:600}
+#busy.on{display:grid}
+.spinner{width:28px;height:28px;border:3px solid var(--border2);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading{padding:60px 20px;text-align:center;color:var(--muted)}
+/* Responsive */
+@media (max-width:980px){
+  .form-layout{grid-template-columns:1fr}
+  .sticky{position:static}
+  .g4{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr}
+}
+@media (max-width:860px){
+  #sidebar{position:fixed;left:0;top:0;z-index:40;transform:translateX(-100%);transition:transform .2s;box-shadow:0 0 40px rgba(0,0,0,.15)}
+  body.nav-open #sidebar{transform:none}
+  body.nav-open::after{content:"";position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:30}
+  .btn.menu-btn{display:inline-flex}
+  #view{padding:16px}
+  .topbar{padding:0 16px}
+  .g2{grid-template-columns:1fr}
+  .hide-sm{display:none}
+}
+@media (max-width:520px){ .g4{grid-template-columns:1fr} .page-head h1{font-size:22px} }
+
+/* ===== Print ===== */
+#print-area{display:none}
+@media print{
+  body{background:#fff}
+  body > *:not(#print-area){display:none !important}
+  #print-area{display:block !important;color:#000;font-size:12px}
+}
+.p-doc{font-family:Arial,Helvetica,sans-serif;color:#111}
+.p-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:12px}
+.p-emp{display:flex;gap:12px;align-items:flex-start}
+.p-emp img{max-width:110px;max-height:80px;object-fit:contain}
+.p-emp h2{margin:0 0 3px;font-size:18px}
+.p-emp div{font-size:11px;line-height:1.5}
+.p-title{text-align:right}
+.p-title h1{margin:0 0 6px;font-size:16px;letter-spacing:.02em}
+.p-title table td{padding:1px 0 1px 10px;border:0;font-size:11px;text-align:right}
+.p-box{display:flex;gap:20px;margin:14px 0;font-size:11px}
+.p-box > div{flex:1;border:1px solid #bbb;border-radius:6px;padding:8px 10px}
+.p-box b.l{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#555;margin-bottom:3px}
+.p-items{width:100%;border-collapse:collapse;font-size:11px}
+.p-items th{background:#eee;color:#111;font-size:10px;padding:6px;border:0;border-bottom:1px solid #999}
+.p-items td{padding:6px;border-bottom:1px solid #ddd}
+.p-tot{width:260px;margin:12px 0 0 auto;font-size:12px}
+.p-tot div{display:flex;justify-content:space-between;padding:2px 0}
+.p-tot .t{font-weight:700;font-size:14px;border-top:1.5px solid #111;margin-top:4px;padding-top:5px}
+.p-notes{margin-top:16px;font-size:11px;white-space:pre-wrap}
+.p-sign{display:flex;gap:60px;margin-top:60px;font-size:11px}
+.p-sign div{flex:1;border-top:1px solid #111;text-align:center;padding-top:4px}
+.p-foot{margin-top:24px;text-align:center;font-size:10px;color:#555}
+/* ticket */
+#print-area.ticket .p-doc{width:72mm;font-size:11px}
+.tk{text-align:center}
+.tk h2{font-size:14px;margin:4px 0}
+.tk img{max-width:40mm;max-height:22mm}
+.tk-line{border-top:1px dashed #000;margin:6px 0}
+.tk-row{display:flex;justify-content:space-between;gap:6px}
+.tk-l{text-align:left}
+</style>
+<style id="page-style">@page{size:letter;margin:12mm}</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand"><div class="logo">F</div><div><b>Facturación RD</b><small>Comprobantes fiscales NCF</small></div></div>
+    <div class="emp-switch" id="emp-switch"></div>
+    <nav id="nav"></nav>
+    <div class="side-foot" id="side-foot">Datos sincronizados en la nube.</div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="btn ghost sm menu-btn" onclick="document.body.classList.toggle('nav-open')" aria-label="Menú">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <div class="crumbs" id="crumbs"></div>
+      <button class="avatar" id="avatar" onclick="A.miCuenta()" title="Mi cuenta">—</button>
+    </header>
+    <main id="view"></main>
+  </div>
+</div>
+<div id="modal-root"></div>
+<div id="toast"></div>
+<div id="print-area"></div>
+<div id="busy"><div><div class="spinner"></div><span id="busy-txt">Cargando…</span></div></div>
+
+<script>
+'use strict';
+/* =========================================================
+   Facturación RD — app de facturación con NCF (DGII)
+   Todo en un archivo, datos en localStorage.
+   ========================================================= */
+const KEY = 'facturacion_rd_v1';
+const A = window.A = {};
+
+const NCF_TIPOS = {
+  B01: { nombre: 'Crédito Fiscal', titulo: 'FACTURA DE CRÉDITO FISCAL', requiereRNC: true },
+  B02: { nombre: 'Consumo', titulo: 'FACTURA DE CONSUMO' },
+  B14: { nombre: 'Régimen Especial', titulo: 'FACTURA DE RÉGIMEN ESPECIAL', requiereRNC: true },
+  B15: { nombre: 'Gubernamental', titulo: 'FACTURA GUBERNAMENTAL', requiereRNC: true },
+  B04: { nombre: 'Nota de Crédito', titulo: 'NOTA DE CRÉDITO' },
+};
+const TIPOS_FACTURA = ['B02', 'B01', 'B14', 'B15'];
+const TIPO_NONE = 'NONE';
+const nombreTipo = t => t === TIPO_NONE ? 'Sin comprobante' : (NCF_TIPOS[t] ? NCF_TIPOS[t].nombre : t);
+const METODOS = ['Efectivo', 'Tarjeta', 'Transferencia', 'Cheque', 'Otro'];
+const ITBIS_TASAS = [18, 16, 0];
+const MOTIVOS_ANULACION = {
+  '01': 'Deterioro de factura pre-imprenta', '02': 'Errores de impresión (factura pre-imprenta)',
+  '03': 'Impresión defectuosa', '04': 'Corrección de la información', '05': 'Cambio de productos',
+  '06': 'Devolución de productos', '07': 'Omisión de productos', '08': 'Errores en secuencia de NCF',
+  '09': 'Por cese de operaciones', '10': 'Pérdida o hurto de talonarios',
+};
+const ESTADOS = {
+  emitida: ['Emitida', 'blue'], pagada: ['Pagada', 'green'], parcial: ['Pago parcial', 'amber'],
+  vencida: ['Vencida', 'red'], anulada: ['Anulada', 'gray'], nota: ['Nota de crédito', 'purple'],
+};
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/* ---------- Supabase ---------- */
+const SUPABASE_URL = 'https://gwvqpnmwqvqrmsbpwmhj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_JG_uubMg9brkjoIz7x-Xmw_uCyvz3F6'; // clave pública (publishable); la seguridad la dan las políticas RLS
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let SESSION = null;
+let BOOTING = true;
+
+function blankDB() { return { version: 1, empresas: [], activeId: null, clientes: [], productos: [], facturas: [] }; }
+let DB = blankDB();   // caché en memoria de la empresa activa
+function localBackup() {
+  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && Array.isArray(d.empresas) && d.empresas.length) return d; } catch (e) { }
+  return null;
+}
+const activeKey = () => 'fact_active_' + (SESSION?.user?.id || '');
+
+function errMsg(err) {
+  const m = String(err?.message || err || 'Error desconocido');
+  if (/Invalid login credentials/i.test(m)) return 'Email o contraseña incorrectos.';
+  if (/Email not confirmed/i.test(m)) return 'Debes confirmar tu email. Revisa tu bandeja de entrada.';
+  if (/User already registered/i.test(m)) return 'Ya existe una cuenta con ese email. Inicia sesión.';
+  if (/Password should be at least/i.test(m)) return 'La contraseña debe tener al menos 6 caracteres.';
+  if (/facturas_empresa_numero_key/.test(m)) return 'Ya existe una factura con ese número. Ajusta el "Próximo número" en Empresas.';
+  if (/facturas_empresa_ncf_key/.test(m)) return 'Ese NCF ya fue usado. Revisa el "Último usado" de la secuencia en Empresas.';
+  if (/row-level security|permission denied/i.test(m)) return 'No tienes permiso para esta acción.';
+  if (/Failed to fetch|NetworkError/i.test(m)) return 'Sin conexión con el servidor. Revisa tu internet.';
+  if (/relation .* does not exist|Could not find the (table|function)/i.test(m)) return 'La base de datos no está configurada. Ejecuta supabase/schema.sql en Supabase.';
+  return m;
+}
+const chk = ({ data, error }) => { if (error) throw error; return data; };
+function busy(on, txt = 'Cargando…') { $('#busy-txt').textContent = txt; $('#busy').classList.toggle('on', !!on); }
+
+/* mapeo filas <-> objetos de la app */
+function fromEmpresaRow(r, seqs, rol) {
+  const secuencias = {};
+  (seqs || []).filter(s => s.empresa_id === r.id).forEach(s => {
+    secuencias[s.tipo] = { activo: s.activo, desde: Number(s.desde), hasta: s.hasta == null ? '' : Number(s.hasta), actual: Number(s.actual), vence: s.vence || '' };
+  });
+  return { ...(r.data || {}), id: r.id, nombre: r.nombre, proximoNumero: r.proximo_numero, proximoNC: r.proximo_nc, rol: rol || 'usuario', secuencias };
+}
+function empresaData(e) { const { id, nombre, proximoNumero, proximoNC, secuencias, rol, ...rest } = e; return rest; }
+const stripIds = o => { const { id, empresaId, ...rest } = o; return rest; };
+const fromRow = r => ({ ...(r.data || {}), id: r.id, empresaId: r.empresa_id });
+const fromFacturaRow = r => ({ pagos: [], items: [], ...(r.data || {}), id: r.id, empresaId: r.empresa_id, numero: r.numero, tipo: r.tipo, ncf: r.ncf || '', _v: r.updated_at });
+const facturaData = f => { const { id, empresaId, _v, _edit, ...rest } = f; return rest; };
+function seqRows(empresaId, secuencias) {
+  return Object.keys(NCF_TIPOS).map(t => {
+    const s = secuencias[t] || {};
+    return { empresa_id: empresaId, tipo: t, activo: !!s.activo, desde: num(s.desde) || 1, hasta: s.hasta === '' || s.hasta == null ? null : num(s.hasta), actual: num(s.actual), vence: s.vence || null };
+  });
+}
+function putCache(list, obj) {
+  const arr = DB[list], i = arr.findIndex(x => x.id === obj.id);
+  if (i >= 0) arr[i] = obj; else arr.push(obj);
+}
+
+async function fetchAll(table, empresaId) {
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const data = chk(await sb.from(table).select('*').eq('empresa_id', empresaId).range(from, from + 999));
+    out.push(...data);
+    if (data.length < 1000) break;
+  }
+  return out;
+}
+async function loadEmpresas() {
+  const [es, ms, ss] = await Promise.all([
+    sb.from('empresas').select('*').order('created_at'),
+    sb.from('miembros').select('empresa_id,rol').eq('user_id', SESSION.user.id),
+    sb.from('secuencias').select('*'),
+  ]).then(rs => rs.map(chk));
+  DB.empresas = es.map(r => fromEmpresaRow(r, ss, (ms.find(m => m.empresa_id === r.id) || {}).rol));
+}
+async function reloadEmpresa(id) {
+  const [r, ss] = await Promise.all([sb.from('empresas').select('*').eq('id', id).single(), sb.from('secuencias').select('*').eq('empresa_id', id)]).then(rs => rs.map(chk));
+  const old = DB.empresas.find(e => e.id === id);
+  const ne = fromEmpresaRow(r, ss, old?.rol);
+  const i = DB.empresas.findIndex(e => e.id === id);
+  if (i >= 0) DB.empresas[i] = ne; else DB.empresas.push(ne);
+}
+async function loadEmpresaData(id) {
+  const [cs, ps, fs] = await Promise.all([fetchAll('clientes', id), fetchAll('productos', id), fetchAll('facturas', id)]);
+  DB.clientes = cs.map(fromRow);
+  DB.productos = ps.map(fromRow);
+  DB.facturas = fs.map(fromFacturaRow);
+}
+async function activarEmpresa(id) {
+  DB.activeId = id;
+  DB.clientes = []; DB.productos = []; DB.facturas = [];
+  try { localStorage.setItem(activeKey(), id || ''); } catch (e) { }
+  if (id) await loadEmpresaData(id);
+  subscribe();
+}
+// Lee la última versión, aplica cambios y guarda solo si nadie la modificó entretanto.
+async function mutateFactura(id, fn) {
+  for (let i = 0; i < 3; i++) {
+    const row = chk(await sb.from('facturas').select('*').eq('id', id).single());
+    const f = fromFacturaRow(row);
+    fn(f);
+    const upd = chk(await sb.from('facturas').update({ data: facturaData(f), fecha: f.fecha }).eq('id', id).eq('updated_at', row.updated_at).select());
+    if (upd.length) { const nf = fromFacturaRow(upd[0]); putCache('facturas', nf); return nf; }
+  }
+  throw new Error('Otro usuario modificó esta factura al mismo tiempo. Intenta de nuevo.');
+}
+
+/* ---------- Tiempo real ---------- */
+let channel = null, rtTimer = null;
+function subscribe() {
+  if (channel) { sb.removeChannel(channel); channel = null; }
+  const id = DB.activeId; if (!id) return;
+  const f = `empresa_id=eq.${id}`;
+  channel = sb.channel('emp-' + id)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'facturas', filter: f }, p => rtRow('facturas', p))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'clientes', filter: f }, p => rtRow('clientes', p))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'productos', filter: f }, p => rtRow('productos', p))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'secuencias', filter: f }, () => rtEmpresa())
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'empresas', filter: `id=eq.${id}` }, () => rtEmpresa())
+    .subscribe();
+}
+function rtRow(list, p) {
+  if (p.eventType === 'DELETE') { DB[list] = DB[list].filter(x => x.id !== p.old.id); }
+  else if (p.new.empresa_id === DB.activeId) putCache(list, list === 'facturas' ? fromFacturaRow(p.new) : fromRow(p.new));
+  rerenderSoon();
+}
+async function rtEmpresa() { try { await reloadEmpresa(DB.activeId); rerenderSoon(); } catch (e) { } }
+function rerenderSoon() {
+  clearTimeout(rtTimer);
+  rtTimer = setTimeout(() => {
+    const { parts } = parseHash();
+    const enForm = parts[0] === 'facturas' && (parts[1] === 'nueva' || parts[2] === 'editar');
+    const escribiendo = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+    if ($('#modal-root').innerHTML || escribiendo) return;
+    if (enForm) { if (draft) A.refreshTotals(); return; }
+    route(true);
+  }, 400);
+}
+
+/* ---------- Helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+  : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
+const r2 = n => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+const num = v => { const n = parseFloat(String(v).replace(/,/g, '')); return isFinite(n) ? n : 0; };
+const money = n => 'RD$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const moneyShort = n => { n = Number(n) || 0; const a = Math.abs(n); if (a >= 1e6) return 'RD$' + (n / 1e6).toFixed(1) + 'M'; if (a >= 1e3) return 'RD$' + (n / 1e3).toFixed(1) + 'K'; return 'RD$' + n.toFixed(0); };
+const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const today = () => iso(new Date());
+const fdate = s => { if (!s) return ''; const [y, m, d] = s.slice(0, 10).split('-'); return `${+d} ${MESES[+m - 1]} ${y}`; };
+const addDays = (s, n) => { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + Number(n)); return iso(d); };
+const daysBetween = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
+const clone = o => JSON.parse(JSON.stringify(o));
+const pad = (n, l = 4) => String(n).padStart(l, '0');
+const digits = v => String(v || '').replace(/\D/g, '');
+const validId = v => [9, 11].includes(digits(v).length);
+function fmtId(v) {
+  const d = digits(v);
+  if (d.length === 9) return d.slice(0, 3) + '-' + d.slice(3, 8) + '-' + d.slice(8);
+  if (d.length === 11) return d.slice(0, 3) + '-' + d.slice(3, 10) + '-' + d.slice(10);
+  return v || '';
+}
+const initials = s => String(s || '').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '—';
+
+const ICONS = {
+  dash: '<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>',
+  inv: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  box: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05M12 22.08V12"/>',
+  chart: '<path d="M18 20V10M12 20V4M6 20v-6"/>',
+  building: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  print: '<path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  back: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  trash: '<path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+  edit: '<path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  cash: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  down: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>',
+  receipt: '<path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 .7V2l-1 .7-3-2-3 2-3-2-3 2-3-2z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+};
+const icon = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[n] || ''}</svg>`;
+
+/* ---------- Data access ---------- */
+const emp = () => DB.empresas.find(e => e.id === DB.activeId) || null;
+const clientes = () => DB.clientes.filter(c => c.empresaId === DB.activeId).sort((a, b) => a.nombre.localeCompare(b.nombre));
+const productos = () => DB.productos.filter(p => p.empresaId === DB.activeId).sort((a, b) => a.descripcion.localeCompare(b.descripcion));
+const facturas = () => DB.facturas.filter(f => f.empresaId === DB.activeId);
+const getC = id => DB.clientes.find(c => c.id === id);
+const getP = id => DB.productos.find(p => p.id === id);
+const getF = id => DB.facturas.find(f => f.id === id);
+
+function calc(f) {
+  let bruto = 0, desc = 0, itbis = 0, gravado = 0, exento = 0;
+  for (const it of f.items || []) {
+    const b = r2(num(it.cantidad) * num(it.precio));
+    const d = r2(b * num(it.descuento) / 100);
+    const base = r2(b - d);
+    const tax = r2(base * num(it.itbis) / 100);
+    bruto += b; desc += d; itbis += tax;
+    if (num(it.itbis) > 0) gravado += base; else exento += base;
+  }
+  const base = r2(bruto - desc);
+  const propina = f.propina ? r2(base * 0.10) : 0;
+  return { bruto: r2(bruto), descuento: r2(desc), base, itbis: r2(itbis), propina, total: r2(base + itbis + propina), gravado: r2(gravado), exento: r2(exento) };
+}
+const pagado = f => r2((f.pagos || []).reduce((s, p) => s + num(p.monto), 0));
+const notasDe = f => DB.facturas.filter(n => n.tipo === 'B04' && n.facturaAfectadaId === f.id && n.estado !== 'anulada');
+const totalNotas = f => r2(notasDe(f).reduce((s, n) => s + calc(n).total, 0));
+function saldo(f) {
+  if (f.estado === 'anulada' || f.tipo === 'B04') return 0;
+  return Math.max(0, r2(calc(f).total - pagado(f) - totalNotas(f)));
+}
+function estado(f) {
+  if (f.estado === 'anulada') return 'anulada';
+  if (f.tipo === 'B04') return 'nota';
+  if (saldo(f) <= 0.004) return 'pagada';
+  if (pagado(f) > 0 || notasDe(f).length) return 'parcial';
+  if (f.vencimiento && f.vencimiento < today()) return 'vencida';
+  return 'emitida';
+}
+const pill = st => `<span class="pill ${ESTADOS[st][1]}">${ESTADOS[st][0]}</span>`;
+const signo = f => f.tipo === 'B04' ? -1 : 1;
+const vigente = f => f.estado !== 'anulada';
+
+function seqInfo(e, tipo) {
+  const s = e.secuencias && e.secuencias[tipo];
+  if (!s || !s.activo) return null;
+  const usadas = Math.max(0, num(s.actual) - num(s.desde) + 1);
+  const restantes = s.hasta ? Math.max(0, num(s.hasta) - Math.max(num(s.actual), num(s.desde) - 1)) : Infinity;
+  return { ...s, usadas, restantes, vencida: s.vence && s.vence < today() };
+}
+
+/* ---------- UI primitives ---------- */
+function toast(msg, type = '') {
+  const t = document.createElement('div');
+  t.className = 'toast ' + type; t.textContent = msg;
+  $('#toast').appendChild(t);
+  setTimeout(() => t.remove(), type === 'error' ? 5000 : 2600);
+}
+let modalOk = null;
+function modal(title, body, { okText = 'Guardar', onOk = null, wide = false, danger = false, cancelText = 'Cancelar', noFooter = false } = {}) {
+  modalOk = onOk;
+  $('#modal-root').innerHTML = `
+  <div class="modal-bg" onmousedown="if(event.target===this)A.closeModal()">
+    <form class="modal ${wide ? 'wide' : ''}" onsubmit="event.preventDefault();A.modalSubmit(this)" novalidate>
+      <div class="modal-h"><span>${title}</span><button type="button" class="icon-btn" onclick="A.closeModal()" aria-label="Cerrar">${icon('x')}</button></div>
+      <div class="modal-b">${body}</div>
+      ${noFooter ? '' : `<div class="modal-f">
+        <button type="button" class="btn" onclick="A.closeModal()">${cancelText}</button>
+        ${onOk ? `<button type="submit" class="btn ${danger ? 'danger solid' : 'primary'}">${okText}</button>` : ''}
+      </div>`}
+    </form>
+  </div>`;
+  const first = $('#modal-root').querySelector('input:not([type=hidden]):not([type=checkbox]):not([disabled]),select,textarea');
+  if (first) setTimeout(() => first.focus(), 30);
+}
+A.closeModal = () => { $('#modal-root').innerHTML = ''; modalOk = null; };
+A.modalSubmit = async form => {
+  if (!modalOk) return A.closeModal();
+  const btn = form.querySelector('button[type=submit]');
+  if (btn) { if (btn.disabled) return; btn.disabled = true; }
+  const fn = modalOk;
+  try { const r = await fn(form); if (r !== false && modalOk === fn) A.closeModal(); }
+  catch (err) { console.error(err); toast(errMsg(err), 'error'); }
+  finally { if (btn && document.body.contains(btn)) btn.disabled = false; }
+};
+function confirmar(title, msg, onYes, { okText = 'Confirmar', danger = true } = {}) {
+  modal(title, `<p style="margin:0">${msg}</p>`, { okText, danger, onOk: () => onYes() });
+}
+const fv = (form, name) => { const el = form.elements[name]; if (!el) return ''; return el.type === 'checkbox' ? el.checked : el.value.trim(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#modal-root').innerHTML) A.closeModal(); });
+
+function download(name, content, type) {
+  const blob = new Blob([content], { type });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+}
+function downloadCSV(name, rows) {
+  const csv = rows.map(r => r.map(v => { const s = String(v ?? ''); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
+  download(name, '﻿' + csv, 'text/csv;charset=utf-8');
+}
+
+/* ---------- Router ---------- */
+const NAV = [
+  ['dashboard', 'Dashboard', 'dash'], ['facturas', 'Facturas', 'inv'], ['clientes', 'Clientes', 'users'],
+  ['productos', 'Productos y servicios', 'box'], ['reportes', 'Reportes', 'chart'],
+  ['empresas', 'Empresas', 'building'], ['ajustes', 'Respaldo y ajustes', 'gear'],
+];
+function parseHash() {
+  const h = location.hash.replace(/^#\/?/, '') || 'dashboard';
+  const [path, qs] = h.split('?');
+  return { parts: path.split('/').filter(Boolean), q: new URLSearchParams(qs || '') };
+}
+function crumbs(...items) {
+  $('#crumbs').innerHTML = items.map((c, i) => i === items.length - 1 ? `<b>${esc(c[0])}</b>` : `<a href="${c[1]}">${esc(c[0])}</a>`).join(' &nbsp;/&nbsp; ');
+}
+function renderShell(section) {
+  const e = emp();
+  $('#emp-switch').innerHTML = DB.empresas.length ? `<label>Empresa</label>
+    <select onchange="A.cambiarEmpresa(this.value)">${DB.empresas.map(x => `<option value="${x.id}" ${x.id === DB.activeId ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}
+    <option value="__new">+ Nueva empresa…</option></select>` : `<label>Empresa</label><div class="muted small">Sin empresas</div>`;
+  $('#nav').innerHTML = NAV.map(([k, l, ic]) => `<a href="#/${k}" class="${k === section ? 'active' : ''}">${icon(ic)}${l}</a>`).join('');
+  $('#avatar').textContent = initials(SESSION?.user?.email || '');
+  $('#side-foot').innerHTML = `${esc(SESSION?.user?.email || '')}<br>${e ? `Rol: ${{ dueno: 'Dueño', admin: 'Administrador', usuario: 'Usuario' }[e.rol] || e.rol} · ` : ''}<button class="linkish" style="font-size:11px" onclick="A.logout()">Cerrar sesión</button>`;
+  document.body.classList.remove('nav-open');
+}
+A.cambiarEmpresa = async id => {
+  if (id === '__new') { renderShell(parseHash().parts[0]); return A.editarEmpresa(); }
+  busy(true, 'Cargando empresa…');
+  try { await activarEmpresa(id); toast('Empresa: ' + emp().nombre); }
+  catch (err) { toast(errMsg(err), 'error'); }
+  finally { busy(false); }
+  location.hash = '#/dashboard'; route();
+};
+const esAdmin = () => ['dueno', 'admin'].includes(emp()?.rol);
+function route(keepScroll) {
+  const { parts, q } = parseHash();
+  const v = $('#view');
+  if (BOOTING) { document.body.classList.add('auth-mode'); v.innerHTML = `<div class="loading"><div class="spinner"></div>Cargando…</div>`; return; }
+  if (!SESSION) { document.body.classList.add('auth-mode'); return viewLogin(v); }
+  document.body.classList.remove('auth-mode');
+  let sec = parts[0] || 'dashboard';
+  if (!DB.empresas.length && !['empresas', 'ajustes'].includes(sec)) sec = 'inicio';
+  renderShell(sec);
+  if (!keepScroll) window.scrollTo(0, 0);
+  try {
+    switch (sec) {
+      case 'inicio': return viewInicio(v);
+      case 'dashboard': return viewDashboard(v);
+      case 'facturas':
+        if (parts[1] === 'nueva') return viewFacturaForm(v, { notaDe: q.get('nota'), dupDe: q.get('dup') });
+        if (parts[1] && parts[2] === 'editar') return viewFacturaForm(v, { editId: parts[1] });
+        if (parts[1]) return viewFactura(v, parts[1]);
+        return viewFacturas(v);
+      case 'clientes': return viewClientes(v);
+      case 'productos': return viewProductos(v);
+      case 'reportes': return viewReportes(v);
+      case 'empresas': return viewEmpresas(v);
+      case 'ajustes': return viewAjustes(v);
+      default: location.hash = '#/dashboard';
+    }
+  } catch (err) {
+    console.error(err);
+    v.innerHTML = `<div class="alert err">Ocurrió un error: ${esc(err.message)}</div>`;
+  }
+}
+window.addEventListener('hashchange', () => route());
+
+/* =========================================================
+   INICIO (sin empresas)
+   ========================================================= */
+function viewInicio(v) {
+  crumbs(['Bienvenido']);
+  const local = localBackup();
+  v.innerHTML = `<div class="onboard">
+    <div class="logo">F</div>
+    <h1>Bienvenido a Facturación RD</h1>
+    <p>Crea tu primera empresa con su RNC y sus secuencias de NCF para empezar a facturar.<br>Puedes manejar varias empresas desde aquí.</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="btn primary" onclick="A.editarEmpresa()">${icon('plus')} Crear empresa</button>
+      <button class="btn" onclick="A.cargarEjemplo()">Cargar empresa de ejemplo</button>
+      <a class="btn" href="#/ajustes">${icon('down')} Importar respaldo</a>
+    </div>
+    ${local ? `<div class="alert info" style="margin-top:22px;text-align:left">Este navegador tiene datos de la versión local (${local.empresas.length} empresa(s), ${(local.facturas || []).length} documentos).
+      <button class="btn sm primary" style="margin-left:auto" onclick="A.migrarLocal()">Subir a la nube</button></div>` : ''}
+    <p class="small" style="margin-top:26px">¿Te invitaron a una empresa? Pide al administrador que te invite con el email <b>${esc(SESSION.user.email)}</b> y vuelve a entrar.</p>
+  </div>`;
+}
+
+/* =========================================================
+   LOGIN
+   ========================================================= */
+let authMode = 'login';
+function viewLogin(v) {
+  const t = { login: ['Iniciar sesión', 'Entrar'], signup: ['Crear cuenta', 'Crear cuenta'], reset: ['Recuperar contraseña', 'Enviar enlace'] }[authMode];
+  v.innerHTML = `<div class="auth-wrap"><div class="card auth-card">
+    <div class="logo">F</div>
+    <h1>${t[0]}</h1><p class="sub2">Facturación RD · Comprobantes fiscales NCF</p>
+    <form onsubmit="event.preventDefault();A.auth(this)">
+      <div class="field"><label>Email</label><input class="in" name="email" type="email" autocomplete="email" required></div>
+      ${authMode !== 'reset' ? `<div class="field"><label>Contraseña</label><input class="in" name="password" type="password" minlength="6" autocomplete="${authMode === 'signup' ? 'new-password' : 'current-password'}" required></div>` : ''}
+      <button class="btn primary" style="padding:11px" type="submit">${t[1]}</button>
+    </form>
+    <div style="display:flex;justify-content:space-between;margin-top:16px;gap:10px;flex-wrap:wrap">
+      ${authMode === 'login' ? `<button class="linkish" onclick="A.authMode('signup')">Crear una cuenta</button><button class="linkish" onclick="A.authMode('reset')">¿Olvidaste tu contraseña?</button>`
+        : `<button class="linkish" onclick="A.authMode('login')">Ya tengo cuenta · Iniciar sesión</button>`}
+    </div>
+  </div></div>`;
+  setTimeout(() => v.querySelector('input')?.focus(), 30);
+}
+A.authMode = m => { authMode = m; route(); };
+A.auth = async form => {
+  const email = fv(form, 'email').toLowerCase(), password = form.elements.password ? form.elements.password.value : '';
+  const btn = form.querySelector('button[type=submit]'); btn.disabled = true;
+  const redirectTo = location.origin + location.pathname;
+  try {
+    if (authMode === 'login') {
+      chk(await sb.auth.signInWithPassword({ email, password }));
+    } else if (authMode === 'signup') {
+      const d = chk(await sb.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } }));
+      if (!d.session) { toast('Cuenta creada. Revisa tu email para confirmarla y luego inicia sesión.', 'ok'); authMode = 'login'; route(); }
+    } else {
+      chk(await sb.auth.resetPasswordForEmail(email, { redirectTo }));
+      toast('Te enviamos un enlace para cambiar la contraseña.', 'ok'); authMode = 'login'; route();
+    }
+  } catch (err) { toast(errMsg(err), 'error'); }
+  finally { btn.disabled = false; }
+};
+A.logout = async () => { await sb.auth.signOut(); };
+A.miCuenta = () => {
+  if (!SESSION) return;
+  modal('Mi cuenta', `<dl class="kv" style="margin:0"><dt>Email</dt><dd>${esc(SESSION.user.email)}</dd>
+    ${emp() ? `<dt>Empresa activa</dt><dd>${esc(emp().nombre)}</dd>` : ''}</dl>
+    <div class="section-title">Cambiar contraseña</div>
+    <div class="field"><input class="in" name="password" type="password" minlength="6" placeholder="Nueva contraseña (opcional)" autocomplete="new-password"></div>
+    <div style="margin-top:16px"><button type="button" class="btn danger" onclick="A.closeModal();A.logout()">Cerrar sesión</button></div>`, {
+    okText: 'Guardar contraseña', cancelText: 'Cerrar', onOk: async form => {
+      const p = form.elements.password.value;
+      if (p.length < 6) { toast('La contraseña debe tener al menos 6 caracteres.', 'error'); return false; }
+      chk(await sb.auth.updateUser({ password: p })); toast('Contraseña actualizada', 'ok');
+    }
+  });
+};
+function pedirNuevaPassword() {
+  modal('Nueva contraseña', `<div class="field"><label>Escribe tu nueva contraseña</label><input class="in" name="password" type="password" minlength="6" autocomplete="new-password" required></div>`, {
+    okText: 'Guardar', onOk: async form => {
+      const p = form.elements.password.value;
+      if (p.length < 6) { toast('Mínimo 6 caracteres.', 'error'); return false; }
+      chk(await sb.auth.updateUser({ password: p })); toast('Contraseña actualizada', 'ok');
+    }
+  });
+}
+
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
+function viewDashboard(v) {
+  const e = emp();
+  crumbs([e.nombre, '#/dashboard'], ['Dashboard']);
+  const fs = facturas().filter(vigente);
+  const hoy = today(), mes = hoy.slice(0, 7), anio = hoy.slice(0, 4);
+  const delMes = fs.filter(f => f.fecha.slice(0, 7) === mes);
+  const facturadoMes = r2(delMes.reduce((s, f) => s + signo(f) * calc(f).total, 0));
+  const itbisMes = r2(delMes.reduce((s, f) => s + signo(f) * calc(f).itbis, 0));
+  const cobradoMes = r2(fs.reduce((s, f) => s + (f.pagos || []).filter(p => p.fecha.slice(0, 7) === mes).reduce((a, p) => a + num(p.monto), 0), 0));
+  const pendientes = fs.filter(f => saldo(f) > 0);
+  const porCobrar = r2(pendientes.reduce((s, f) => s + saldo(f), 0));
+  const vencidas = pendientes.filter(f => estado(f) === 'vencida');
+
+  // Últimos 12 meses
+  const meses = [];
+  const d0 = new Date(); d0.setDate(1);
+  for (let i = 11; i >= 0; i--) { const d = new Date(d0.getFullYear(), d0.getMonth() - i, 1); meses.push(iso(d).slice(0, 7)); }
+  const serie = meses.map(m => ({
+    m,
+    fact: r2(fs.filter(f => f.fecha.slice(0, 7) === m).reduce((s, f) => s + signo(f) * calc(f).total, 0)),
+    cob: r2(fs.reduce((s, f) => s + (f.pagos || []).filter(p => p.fecha.slice(0, 7) === m).reduce((a, p) => a + num(p.monto), 0), 0)),
+  }));
+
+  // Top clientes del año
+  const porCliente = {};
+  fs.filter(f => f.fecha.slice(0, 4) === anio).forEach(f => {
+    const k = f.clienteId || '_cf';
+    porCliente[k] = porCliente[k] || { nombre: f.cliente?.nombre || 'Consumidor Final', total: 0, n: 0 };
+    porCliente[k].total += signo(f) * calc(f).total; porCliente[k].n++;
+  });
+  const top = Object.values(porCliente).sort((a, b) => b.total - a.total).slice(0, 5);
+
+  // Alertas NCF
+  const alertas = [];
+  Object.keys(NCF_TIPOS).forEach(t => {
+    const s = seqInfo(e, t); if (!s) return;
+    if (s.vencida) alertas.push(['err', `Secuencia ${t} vencida desde ${fdate(s.vence)}.`]);
+    else if (s.vence && daysBetween(hoy, s.vence) <= 30) alertas.push(['warn', `Secuencia ${t} vence el ${fdate(s.vence)}.`]);
+    if (s.restantes !== Infinity && s.restantes <= Math.max(10, (num(s.hasta) - num(s.desde) + 1) * 0.1))
+      alertas.push([s.restantes === 0 ? 'err' : 'warn', `Secuencia ${t}: ${s.restantes === 0 ? 'agotada' : `quedan ${s.restantes} comprobantes`}.`]);
+  });
+  if (!TIPOS_FACTURA.some(t => seqInfo(e, t))) alertas.push(['info', 'No tienes secuencias NCF activas. Configúralas en Empresas para emitir comprobantes fiscales.']);
+
+  const recientes = facturas().slice().sort((a, b) => (b.fecha + b.creada).localeCompare(a.fecha + a.creada)).slice(0, 8);
+
+  v.innerHTML = `
+  <div class="page-head"><h1>Dashboard</h1><a class="btn primary" href="#/facturas/nueva">${icon('plus')} Nueva factura</a></div>
+  ${alertas.map(a => `<div class="alert ${a[0]} mb">${esc(a[1])} <a href="#/empresas" style="text-decoration:underline;margin-left:auto">Ver secuencias</a></div>`).join('')}
+  <div class="grid g4">
+    <div class="card kpi"><div class="l">Facturado del mes</div><div class="v">${money(facturadoMes)}</div><div class="d">${delMes.filter(f => f.tipo !== 'B04').length} facturas en ${MESES[+mes.slice(5) - 1]}</div></div>
+    <div class="card kpi"><div class="l">Cobrado del mes</div><div class="v">${money(cobradoMes)}</div><div class="d">Pagos recibidos</div></div>
+    <div class="card kpi"><div class="l">Por cobrar</div><div class="v" style="color:${porCobrar > 0 ? 'var(--amber)' : 'inherit'}">${money(porCobrar)}</div><div class="d">${pendientes.length} pendientes · ${vencidas.length} vencidas</div></div>
+    <div class="card kpi"><div class="l">ITBIS del mes</div><div class="v">${money(itbisMes)}</div><div class="d">Facturado (neto de notas)</div></div>
+  </div>
+  <div class="grid mt" style="grid-template-columns:2fr 1fr">
+    <div class="card"><div class="card-h">Ventas últimos 12 meses<span class="sp"></span>
+      <div class="legend"><span><i style="background:var(--primary)"></i>Facturado</span><span><i style="background:#c9c6ef"></i>Cobrado</span></div></div>
+      <div class="card-b chart">${barChart(serie)}</div></div>
+    <div class="card"><div class="card-h">Mejores clientes ${anio}</div>
+      ${top.length ? `<table><tbody>${top.map(c => `<tr><td>${esc(c.nombre)}<span class="sub">${c.n} documentos</span></td><td class="right nowrap">${money(c.total)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Sin ventas este año</div>`}
+    </div>
+  </div>
+  <div class="card mt"><div class="card-h">Facturas recientes<span class="sp"></span><a class="btn sm" href="#/facturas">Ver todas</a></div>
+    ${recientes.length ? `<div class="tbl-wrap"><table><thead><tr><th>Número</th><th class="hide-sm">NCF</th><th>Cliente</th><th class="hide-sm">Fecha</th><th class="right">Total</th><th>Estado</th></tr></thead>
+    <tbody>${recientes.map(rowFactura).join('')}</tbody></table></div>` : `<div class="empty">Aún no hay facturas. <a href="#/facturas/nueva" style="text-decoration:underline">Crea la primera</a>.</div>`}
+  </div>`;
+}
+function barChart(serie) {
+  const W = 640, H = 220, P = { l: 52, r: 8, t: 10, b: 26 };
+  const max = Math.max(1, ...serie.map(s => Math.max(s.fact, s.cob)));
+  const step = (W - P.l - P.r) / serie.length, bw = Math.min(16, step / 3);
+  const y = val => P.t + (H - P.t - P.b) * (1 - Math.max(0, val) / max);
+  let g = '';
+  for (let i = 0; i <= 4; i++) {
+    const val = max * i / 4, yy = y(val);
+    g += `<line x1="${P.l}" x2="${W - P.r}" y1="${yy}" y2="${yy}" stroke="#eceef2"/><text x="${P.l - 6}" y="${yy + 4}" text-anchor="end">${moneyShort(val).replace('RD$', '')}</text>`;
+  }
+  serie.forEach((s, i) => {
+    const cx = P.l + step * i + step / 2;
+    g += `<rect class="bar" x="${cx - bw - 1}" y="${y(s.fact)}" width="${bw}" height="${H - P.b - y(s.fact)}" rx="3"><title>${MESES[+s.m.slice(5) - 1]} ${s.m.slice(0, 4)} · Facturado ${money(s.fact)}</title></rect>`;
+    g += `<rect class="bar2" x="${cx + 1}" y="${y(s.cob)}" width="${bw}" height="${H - P.b - y(s.cob)}" rx="3"><title>Cobrado ${money(s.cob)}</title></rect>`;
+    g += `<text x="${cx}" y="${H - 8}" text-anchor="middle">${MESES[+s.m.slice(5) - 1]}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ventas por mes">${g}</svg>`;
+}
+
+/* =========================================================
+   FACTURAS — lista
+   ========================================================= */
+const LF = { q: '', tipo: 'ventas', estado: '', desde: '', hasta: '', limit: 50 };
+function rowFactura(f) {
+  const t = calc(f), c = f.cliente || {};
+  return `<tr class="click" onclick="location.hash='#/facturas/${f.id}'">
+    <td class="mono nowrap"><a href="#/facturas/${f.id}">${esc(f.numero)}</a></td>
+    <td class="mono small hide-sm">${f.ncf ? esc(f.ncf) : '<span class="muted">—</span>'}</td>
+    <td>${esc(c.nombre || 'Consumidor Final')}${c.rnc ? `<span class="sub">RNC: ${esc(fmtId(c.rnc))}</span>` : ''}</td>
+    <td class="nowrap hide-sm">${fdate(f.fecha)}</td>
+    <td class="right nowrap">${f.tipo === 'B04' ? '-' : ''}${money(t.total)}</td>
+    <td>${pill(estado(f))}</td></tr>`;
+}
+function viewFacturas(v) {
+  const e = emp();
+  crumbs([e.nombre, '#/dashboard'], ['Facturas']);
+  v.innerHTML = `
+  <div class="page-head"><h1>Facturas</h1><a class="btn primary" href="#/facturas/nueva">${icon('plus')} Crear</a></div>
+  <div class="toolbar"><div class="search">${icon('search')}<input id="lf-q" placeholder="Buscar por número, NCF, cliente o RNC…" value="${esc(LF.q)}" oninput="A.lf('q',this.value)"></div></div>
+  <div class="toolbar">
+    <label class="chip-select"><span>Comprobante:</span><select onchange="A.lf('tipo',this.value)">
+      ${[['ventas', 'Facturas de venta'], ['', 'Todos'], ...TIPOS_FACTURA.map(t => [t, `${t} · ${nombreTipo(t)}`]), ['B04', 'B04 · Notas de crédito'], [TIPO_NONE, 'Sin comprobante']]
+        .map(([k, l]) => `<option value="${k}" ${LF.tipo === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label class="chip-select"><span>Estado:</span><select onchange="A.lf('estado',this.value)">
+      <option value="">Todas</option>${Object.entries(ESTADOS).filter(([k]) => k !== 'nota').map(([k, [l]]) => `<option value="${k}" ${LF.estado === k ? 'selected' : ''}>${l}</option>`).join('')}
+      <option value="pendiente" ${LF.estado === 'pendiente' ? 'selected' : ''}>Con saldo pendiente</option></select></label>
+    <label class="chip-select"><span>Desde:</span><input type="date" value="${LF.desde}" onchange="A.lf('desde',this.value)"></label>
+    <label class="chip-select"><span>Hasta:</span><input type="date" value="${LF.hasta}" onchange="A.lf('hasta',this.value)"></label>
+  </div>
+  <div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>Número</th><th class="hide-sm">NCF</th><th>Cliente</th><th class="hide-sm">Fecha</th><th class="right">Total</th><th>Estado</th></tr></thead>
+    <tbody id="lf-body"></tbody></table></div>
+    <div class="table-foot" id="lf-foot"></div></div>`;
+  fillFacturas();
+}
+A.lf = (k, val) => { LF[k] = val; LF.limit = 50; fillFacturas(); };
+A.lfMore = () => { LF.limit += 100; fillFacturas(); };
+function filtrarFacturas() {
+  const q = LF.q.toLowerCase().trim(), qd = digits(q);
+  return facturas().filter(f => {
+    if (LF.tipo === 'ventas' && f.tipo === 'B04') return false;
+    if (LF.tipo && LF.tipo !== 'ventas' && f.tipo !== LF.tipo) return false;
+    if (LF.desde && f.fecha < LF.desde) return false;
+    if (LF.hasta && f.fecha > LF.hasta) return false;
+    if (LF.estado === 'pendiente') { if (!(saldo(f) > 0)) return false; }
+    else if (LF.estado && estado(f) !== LF.estado) return false;
+    if (q) {
+      const c = f.cliente || {};
+      const hay = [f.numero, f.ncf, c.nombre || 'consumidor final'].join(' ').toLowerCase();
+      if (!hay.includes(q) && !(qd.length >= 3 && digits(c.rnc).includes(qd))) return false;
+    }
+    return true;
+  }).sort((a, b) => (b.fecha + b.creada).localeCompare(a.fecha + a.creada));
+}
+function fillFacturas() {
+  const list = filtrarFacturas();
+  const body = $('#lf-body'); if (!body) return;
+  body.innerHTML = list.length ? list.slice(0, LF.limit).map(rowFactura).join('')
+    : `<tr><td colspan="6"><div class="empty">${facturas().length ? 'No hay facturas que coincidan con los filtros.' : 'Aún no hay facturas.'}</div></td></tr>`;
+  const tot = r2(list.filter(vigente).reduce((s, f) => s + signo(f) * calc(f).total, 0));
+  $('#lf-foot').innerHTML = `<span>${list.length} documentos · Total ${money(tot)}</span><span style="flex:1"></span>
+    ${list.length > LF.limit ? `<button class="btn sm" onclick="A.lfMore()">Ver más</button>` : ''}`;
+}
+
+/* =========================================================
+   FACTURA — detalle
+   ========================================================= */
+function viewFactura(v, id) {
+  const f = getF(id);
+  if (!f || f.empresaId !== DB.activeId) { v.innerHTML = `<div class="empty">Factura no encontrada. <a href="#/facturas">Volver</a></div>`; return; }
+  const e = emp(), t = calc(f), st = estado(f), c = f.cliente || {};
+  const notas = notasDe(f), sal = saldo(f), pag = pagado(f);
+  const afectada = f.facturaAfectadaId ? getF(f.facturaAfectadaId) : null;
+  const editable = f.estado !== 'anulada' && !(f.pagos || []).length && !notas.length;
+  crumbs([e.nombre, '#/dashboard'], ['Facturas', '#/facturas'], [f.numero]);
+  v.innerHTML = `
+  <div class="page-head">
+    <a class="btn ghost sm" href="#/facturas" aria-label="Volver">${icon('back')}</a>
+    <h1><span class="mono">${esc(f.numero)}</span> ${pill(st)}</h1>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="A.imprimir('${f.id}')">${icon('print')} Imprimir</button>
+      <button class="btn" onclick="A.imprimir('${f.id}',true)">${icon('receipt')} Ticket</button>
+      ${sal > 0 ? `<button class="btn primary" onclick="A.registrarPago('${f.id}')">${icon('cash')} Registrar pago</button>` : ''}
+    </div>
+  </div>
+  ${f.estado === 'anulada' ? `<div class="alert err mb">Documento anulado el ${fdate(f.anulada?.fecha)} · Motivo: ${esc(f.anulada?.motivo)} ${esc(MOTIVOS_ANULACION[f.anulada?.motivo] || '')}</div>` : ''}
+  <div class="grid g2">
+    <div class="card"><div class="card-h">Cliente</div><div class="card-b">
+      <div style="font-weight:600;font-size:15px">${esc(c.nombre || 'Consumidor Final')}</div>
+      ${c.direccion ? `<div class="muted small">${esc(c.direccion)}</div>` : ''}
+      <div class="grid g2" style="margin-top:14px;gap:10px">
+        <div><div class="lbl">RNC / Cédula</div>${c.rnc ? esc(fmtId(c.rnc)) : '<span class="muted">—</span>'}</div>
+        <div><div class="lbl">Teléfono</div>${c.telefono ? esc(c.telefono) : '<span class="muted">—</span>'}</div>
+        ${c.email ? `<div><div class="lbl">Email</div>${esc(c.email)}</div>` : ''}
+      </div>
+      ${f.clienteId && getC(f.clienteId) ? `<button class="btn sm mt" onclick="A.estadoCuenta('${f.clienteId}')">Estado de cuenta</button>` : ''}
+    </div></div>
+    <div class="card"><div class="card-h">Información</div><div class="card-b"><dl class="kv" style="margin:0">
+      <dt>Fecha</dt><dd>${fdate(f.fecha)}</dd>
+      <dt>Comprobante</dt><dd>${f.tipo === TIPO_NONE ? 'Sin comprobante fiscal' : `${f.tipo} · ${nombreTipo(f.tipo)}`}</dd>
+      ${f.ncf ? `<dt>NCF</dt><dd class="mono">${esc(f.ncf)}</dd><dt>Vence NCF</dt><dd>${f.ncfVence ? fdate(f.ncfVence) : '—'}</dd>` : ''}
+      ${afectada ? `<dt>Afecta a</dt><dd><a href="#/facturas/${afectada.id}" style="text-decoration:underline">${esc(afectada.numero)}</a> <span class="mono small">${esc(afectada.ncf || '')}</span></dd>` : ''}
+      ${f.tipo !== 'B04' ? `<dt>Condición de pago</dt><dd>${f.condicion === 'credito' ? `Crédito ${f.diasCredito} días` : 'Contado'}</dd>` : ''}
+      ${f.vencimiento ? `<dt>Vencimiento</dt><dd>${fdate(f.vencimiento)}</dd>` : ''}
+      <dt>Estado de pago</dt><dd>${pill(st)}</dd>
+      <dt>Creada</dt><dd class="small">${f.creada ? new Date(f.creada).toLocaleString('es-DO') : ''}</dd>
+    </dl></div></div>
+  </div>
+
+  <div class="card mt"><div class="card-h">Ítems</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Descripción</th><th class="right">Cant.</th><th class="right">Precio unit.</th><th class="right hide-sm">Desc.</th><th class="right">ITBIS</th><th class="right">Subtotal</th></tr></thead>
+    <tbody>${f.items.map(it => {
+      const b = r2(num(it.cantidad) * num(it.precio)), base = r2(b - b * num(it.descuento) / 100);
+      return `<tr><td>${esc(it.descripcion)}${it.sku ? `<span class="sub">SKU: ${esc(it.sku)}</span>` : ''}</td>
+        <td class="right mono">${num(it.cantidad).toFixed(2)}</td><td class="right mono">${money(it.precio)}</td>
+        <td class="right hide-sm">${num(it.descuento) ? num(it.descuento) + '%' : '—'}</td>
+        <td class="right mono">${money(base * num(it.itbis) / 100)}<span class="sub">${num(it.itbis)}%</span></td>
+        <td class="right mono" style="font-weight:600">${money(base)}</td></tr>`;
+    }).join('')}</tbody></table></div>
+    <div class="totals">
+      <div class="row"><span class="muted">Subtotal</span><span>${money(t.bruto)}</span></div>
+      ${t.descuento ? `<div class="row"><span class="muted">Descuento</span><span>-${money(t.descuento)}</span></div>` : ''}
+      <div class="row"><span class="muted">ITBIS</span><span>${money(t.itbis)}</span></div>
+      ${t.propina ? `<div class="row"><span class="muted">Propina legal (10%)</span><span>${money(t.propina)}</span></div>` : ''}
+      <div class="row big"><span>Total</span><span>${money(t.total)}</span></div>
+      ${f.tipo !== 'B04' && f.estado !== 'anulada' ? `
+        ${notas.length ? `<div class="row"><span class="muted">Notas de crédito</span><span>-${money(totalNotas(f))}</span></div>` : ''}
+        <div class="row"><span class="muted">Pagado</span><span>${money(pag)}</span></div>
+        <div class="row ${sal > 0 ? 'due' : ''}"><span>Saldo pendiente</span><span>${money(sal)}</span></div>` : ''}
+    </div>
+  </div>
+
+  ${f.tipo !== 'B04' ? `<div class="card mt"><div class="card-h">Pagos registrados<span class="sp"></span>${sal > 0 ? `<button class="btn sm" onclick="A.registrarPago('${f.id}')">${icon('plus')} Agregar</button>` : ''}</div>
+    ${(f.pagos || []).length ? `<div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Método</th><th>Referencia</th><th class="right">Monto</th><th></th></tr></thead><tbody>
+      ${f.pagos.map(p => `<tr><td>${fdate(p.fecha)}</td><td>${esc(p.metodo)}</td><td class="muted">${esc(p.referencia || '—')}</td><td class="right mono">${money(p.monto)}</td>
+      <td class="right">${f.estado !== 'anulada' ? `<button class="icon-btn" title="Eliminar pago" onclick="A.borrarPago('${f.id}','${p.id}')">${icon('trash')}</button>` : ''}</td></tr>`).join('')}
+    </tbody></table></div>` : `<div class="empty" style="padding:22px">Sin pagos registrados.</div>`}
+  </div>` : ''}
+
+  ${notas.length ? `<div class="card mt"><div class="card-h">Notas de crédito aplicadas</div><table><tbody>
+    ${notas.map(n => `<tr class="click" onclick="location.hash='#/facturas/${n.id}'"><td class="mono">${esc(n.numero)}</td><td class="mono small">${esc(n.ncf || '')}</td><td>${fdate(n.fecha)}</td><td class="right">-${money(calc(n).total)}</td></tr>`).join('')}
+  </tbody></table></div>` : ''}
+
+  <div class="grid g2 mt">
+    <div class="card"><div class="card-h">Notas / nota de impresión<span class="sp"></span>${f.estado !== 'anulada' ? `<button class="btn sm" onclick="A.editarNotas('${f.id}')">${icon('edit')} Editar</button>` : ''}</div>
+      <div class="card-b" style="white-space:pre-wrap">${f.notas ? esc(f.notas) : '<span class="muted">Sin notas.</span>'}</div></div>
+    <div class="card"><div class="card-h">Acciones</div><div class="card-b" style="display:flex;gap:8px;flex-wrap:wrap">
+      ${editable ? `<a class="btn" href="#/facturas/${f.id}/editar">${icon('edit')} Editar</a>` : ''}
+      <a class="btn" href="#/facturas/nueva?dup=${f.id}">${icon('copy')} Duplicar</a>
+      ${f.tipo !== 'B04' && f.ncf && f.estado !== 'anulada' ? `<a class="btn" href="#/facturas/nueva?nota=${f.id}">${icon('undo')} Nota de crédito</a>` : ''}
+      ${f.estado !== 'anulada' ? `<button class="btn danger" onclick="A.anular('${f.id}')">${icon('ban')} Anular</button>` : ''}
+      ${!editable && f.estado !== 'anulada' ? `<div class="muted small" style="width:100%">Para editar, elimina primero los pagos${notas.length ? ' y notas de crédito' : ''}. Lo correcto fiscalmente es emitir una nota de crédito.</div>` : ''}
+    </div></div>
+  </div>`;
+}
+
+A.registrarPago = id => {
+  const f = getF(id), sal = saldo(f);
+  modal('Registrar pago', `
+    <div class="alert info mb">${esc(f.numero)} · Saldo pendiente <b>${money(sal)}</b></div>
+    <div class="fgrid">
+      <div class="field"><label>Monto</label><input class="in" name="monto" type="number" step="0.01" min="0.01" value="${sal.toFixed(2)}" required></div>
+      <div class="field"><label>Fecha</label><input class="in" name="fecha" type="date" value="${today()}" required></div>
+      <div class="field"><label>Método</label><select class="in" name="metodo">${METODOS.map(m => `<option>${m}</option>`).join('')}</select></div>
+      <div class="field"><label>Referencia</label><input class="in" name="referencia" placeholder="No. transferencia, cheque…"></div>
+    </div>`, {
+    okText: 'Registrar pago', onOk: async form => {
+      const monto = r2(num(fv(form, 'monto')));
+      if (monto <= 0) { toast('El monto debe ser mayor que cero.', 'error'); return false; }
+      if (monto > sal + 0.004) { toast(`El monto excede el saldo pendiente (${money(sal)}).`, 'error'); return false; }
+      const pago = { id: uid(), fecha: fv(form, 'fecha') || today(), metodo: fv(form, 'metodo'), monto, referencia: fv(form, 'referencia'), por: SESSION.user.email };
+      await mutateFactura(id, d => {
+        const s = r2(calc(d).total - pagado(d) - totalNotas(d));
+        if (monto > s + 0.004) throw new Error(`Otro usuario ya registró pagos. Saldo actual: ${money(s)}.`);
+        d.pagos = d.pagos || []; d.pagos.push(pago);
+      });
+      toast('Pago registrado', 'ok'); route(true);
+    }
+  });
+};
+A.borrarPago = (fid, pid) => confirmar('Eliminar pago', '¿Eliminar este pago? El saldo de la factura volverá a aumentar.', async () => {
+  await mutateFactura(fid, d => { d.pagos = (d.pagos || []).filter(p => p.id !== pid); }); route(true);
+}, { okText: 'Eliminar' });
+A.editarNotas = id => {
+  const f = getF(id);
+  modal('Notas de la factura', `<div class="field"><label>Se imprimen en la factura</label><textarea class="in" name="notas" rows="5">${esc(f.notas || '')}</textarea></div>`,
+    { onOk: async form => { const n = form.elements.notas.value; await mutateFactura(id, d => { d.notas = n; }); route(true); } });
+};
+A.anular = id => {
+  const f = getF(id);
+  const tieneNotas = notasDe(f).length;
+  if (tieneNotas) return toast('Primero anula las notas de crédito asociadas a esta factura.', 'error');
+  modal('Anular ' + f.numero, `
+    <div class="alert warn mb">El NCF ${esc(f.ncf || '')} quedará anulado y se reportará en el formato 608. Esta acción no se puede deshacer.${(f.pagos || []).length ? ' Los pagos registrados quedarán sin efecto.' : ''}</div>
+    <div class="field"><label>Motivo de anulación (DGII)</label><select class="in" name="motivo">${Object.entries(MOTIVOS_ANULACION).map(([k, l]) => `<option value="${k}" ${k === '04' ? 'selected' : ''}>${k} · ${l}</option>`).join('')}</select></div>`,
+    { okText: 'Anular documento', danger: true, onOk: async form => {
+      const anulada = { fecha: today(), motivo: fv(form, 'motivo'), por: SESSION.user.email };
+      await mutateFactura(id, d => { d.estado = 'anulada'; d.anulada = anulada; });
+      toast('Documento anulado'); route(true);
+    } });
+};
+
+/* =========================================================
+   FACTURA — formulario
+   ========================================================= */
+let draft = null;
+const blankItem = () => ({ productoId: '', sku: '', descripcion: '', cantidad: 1, precio: 0, descuento: 0, itbis: emp()?.itbisPredeterminado ?? 18 });
+function viewFacturaForm(v, opts) {
+  const e = emp();
+  if (opts.editId) {
+    const f = getF(opts.editId);
+    if (!f || f.empresaId !== e.id) { location.hash = '#/facturas'; return; }
+    draft = clone(f); draft._edit = true;
+  } else {
+    draft = {
+      tipo: e.tipoPredeterminado || 'B02', clienteId: '', fecha: today(), condicion: e.condicionPredeterminada || 'contado',
+      diasCredito: 30, items: [], propina: false, notas: e.notaPie || '', facturaAfectadaId: '', pagarAhora: true, metodoPago: 'Efectivo',
+    };
+    if (opts.notaDe) {
+      const o = getF(opts.notaDe);
+      if (o) Object.assign(draft, { tipo: 'B04', clienteId: o.clienteId, facturaAfectadaId: o.id, items: clone(o.items), propina: o.propina, notas: '', condicion: 'contado' });
+    } else if (opts.dupDe) {
+      const o = getF(opts.dupDe);
+      if (o) Object.assign(draft, { tipo: o.tipo === 'B04' ? 'B02' : o.tipo, clienteId: o.clienteId, items: clone(o.items), propina: o.propina, notas: o.notas, condicion: o.condicion, diasCredito: o.diasCredito || 30 });
+    }
+    if (pendingCliente && getC(pendingCliente)) {
+      draft.clienteId = pendingCliente;
+      if (validId(getC(pendingCliente).rnc) && seqInfo(e, 'B01')) draft.tipo = 'B01';
+    }
+    pendingCliente = null;
+    if (!draft.items.length) draft.items.push(blankItem());
+  }
+  renderForm(v);
+}
+function renderForm(v = $('#view')) {
+  const e = emp(), d = draft, isNota = d.tipo === 'B04';
+  const titulo = d._edit ? `Editar ${d.numero}` : isNota ? 'Nueva nota de crédito' : 'Nueva factura';
+  crumbs([e.nombre, '#/dashboard'], ['Facturas', '#/facturas'], [titulo]);
+  const tiposDisp = isNota ? ['B04'] : [...TIPOS_FACTURA, TIPO_NONE];
+  const cl = clientes();
+  const facturasAfectables = facturas().filter(f => f.tipo !== 'B04' && f.ncf && f.estado !== 'anulada').sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const seq = d.tipo !== TIPO_NONE ? seqInfo(e, d.tipo) : null;
+  let seqMsg = '';
+  if (!d._edit && d.tipo !== TIPO_NONE) {
+    if (!seq) seqMsg = `<div class="alert err">No hay secuencia activa para ${d.tipo}. <a href="#/empresas" style="text-decoration:underline">Configurar</a></div>`;
+    else if (seq.vencida) seqMsg = `<div class="alert err">La secuencia ${d.tipo} está vencida (${fdate(seq.vence)}).</div>`;
+    else if (seq.restantes === 0) seqMsg = `<div class="alert err">La secuencia ${d.tipo} está agotada.</div>`;
+    else seqMsg = `<div class="muted small">Próximo NCF: <span class="mono">${d.tipo}${pad(Math.max(num(seq.actual) + 1, num(seq.desde)), 8)}</span>${seq.restantes !== Infinity ? ` · quedan ${seq.restantes}` : ''}</div>`;
+  }
+  const cli = d.clienteId ? getC(d.clienteId) : null;
+  const needRNC = NCF_TIPOS[d.tipo]?.requiereRNC;
+  v.innerHTML = `
+  <div class="page-head">
+    <a class="btn ghost sm" href="${d._edit ? '#/facturas/' + d.id : '#/facturas'}" aria-label="Volver">${icon('back')}</a>
+    <h1>${esc(titulo)}</h1>
+  </div>
+  <datalist id="prodlist">${productos().map(p => `<option value="${esc(p.descripcion)}">${esc(p.sku ? p.sku + ' · ' : '')}${money(p.precio)}</option>`).join('')}</datalist>
+  <div class="form-layout">
+    <div>
+      <div class="card"><div class="card-h">Datos del comprobante</div><div class="card-b">
+        <div class="fgrid">
+          <div class="field"><label>Tipo de comprobante</label>
+            <select class="in" ${d._edit || isNota ? 'disabled' : ''} onchange="A.df('tipo',this.value,true)">
+              ${tiposDisp.map(t => `<option value="${t}" ${d.tipo === t ? 'selected' : ''}>${t === TIPO_NONE ? 'Sin comprobante fiscal' : `${t} · ${nombreTipo(t)}`}</option>`).join('')}
+            </select>${seqMsg}</div>
+          <div class="field"><label>Fecha</label><input class="in" type="date" value="${d.fecha}" onchange="A.df('fecha',this.value,true)"></div>
+        </div>
+        ${isNota ? `<div class="field mt"><label>Factura que afecta</label>
+          <select class="in" ${d._edit ? 'disabled' : ''} onchange="A.notaAfecta(this.value)"><option value="">Seleccionar…</option>
+          ${facturasAfectables.map(f => `<option value="${f.id}" ${d.facturaAfectadaId === f.id ? 'selected' : ''}>${esc(f.numero)} · ${esc(f.ncf)} · ${esc(f.cliente?.nombre || 'Consumidor Final')} · ${money(calc(f).total)}</option>`).join('')}
+          </select></div>` : ''}
+        <div class="fgrid mt">
+          <div class="field" style="grid-column:1/-1"><label>Cliente</label>
+            <div style="display:flex;gap:8px">
+              <select class="in" ${isNota ? 'disabled' : ''} onchange="A.df('clienteId',this.value,true)">
+                <option value="">Consumidor Final</option>
+                ${cl.map(c => `<option value="${c.id}" ${d.clienteId === c.id ? 'selected' : ''}>${esc(c.nombre)}${c.rnc ? ' · ' + esc(fmtId(c.rnc)) : ''}</option>`).join('')}
+              </select>
+              ${isNota ? '' : `<button type="button" class="btn" onclick="A.editarCliente(null,true)">${icon('plus')} Nuevo</button>`}
+            </div>
+            ${needRNC && !(cli && validId(cli.rnc)) ? `<div class="alert warn" style="margin-top:6px">El comprobante ${d.tipo} requiere un cliente con RNC o cédula válido.</div>` : ''}
+            ${cli ? `<div class="muted small">${esc([cli.rnc && 'RNC: ' + fmtId(cli.rnc), cli.telefono, cli.direccion].filter(Boolean).join(' · '))}</div>` : ''}
+          </div>
+        </div>
+        ${isNota ? '' : `<div class="fgrid mt">
+          <div class="field"><label>Condición de pago</label><select class="in" onchange="A.df('condicion',this.value,true)">
+            <option value="contado" ${d.condicion === 'contado' ? 'selected' : ''}>Contado</option>
+            <option value="credito" ${d.condicion === 'credito' ? 'selected' : ''}>Crédito</option></select></div>
+          ${d.condicion === 'credito' ? `<div class="field"><label>Plazo</label><select class="in" onchange="A.df('diasCredito',+this.value,true)">
+            ${[7, 15, 30, 45, 60, 90].map(n => `<option value="${n}" ${+d.diasCredito === n ? 'selected' : ''}>${n} días</option>`).join('')}</select>
+            <span class="hint">Vence: ${fdate(addDays(d.fecha, d.diasCredito))}</span></div>` : ''}
+        </div>`}
+      </div></div>
+
+      <div class="card mt"><div class="card-h">Ítems<span class="sp"></span><a class="btn sm ghost" href="#/productos" title="Administrar catálogo">Catálogo</a></div>
+        <div class="tbl-wrap"><table class="items-tbl">
+          <thead><tr><th style="min-width:220px">Descripción</th><th style="width:80px" class="right">Cant.</th><th style="width:120px" class="right">Precio</th><th style="width:70px" class="right">Desc. %</th><th style="width:84px">ITBIS</th><th style="width:120px" class="right">Subtotal</th><th style="width:34px"></th></tr></thead>
+          <tbody id="items-body">${d.items.map((it, i) => itemRow(it, i)).join('')}</tbody>
+        </table></div>
+        <div class="card-b" style="padding-top:10px"><button type="button" class="btn sm" onclick="A.addItem()">${icon('plus')} Agregar línea</button>
+          <span class="muted small" style="margin-left:8px">Escribe para buscar en tu catálogo de productos.</span></div>
+      </div>
+
+      <div class="card mt"><div class="card-h">Notas</div><div class="card-b">
+        <textarea class="in" rows="3" placeholder="Notas que se imprimen en la factura (opcional)" oninput="A.df('notas',this.value)">${esc(d.notas || '')}</textarea>
+      </div></div>
+    </div>
+
+    <div class="sticky">
+      <div class="card"><div class="card-h">Resumen</div>
+        <div id="form-totals"></div>
+        <div class="card-b" style="border-top:1px solid var(--border);display:flex;flex-direction:column;gap:12px">
+          <label class="check"><input type="checkbox" ${d.propina ? 'checked' : ''} onchange="A.df('propina',this.checked);A.refreshTotals()"> Propina legal (10%)</label>
+          ${!d._edit && !isNota ? `<label class="check"><input type="checkbox" ${d.pagarAhora ? 'checked' : ''} onchange="A.df('pagarAhora',this.checked,true)"> Registrar pago completo ahora</label>
+            ${d.pagarAhora ? `<div class="field"><label>Método de pago</label><select class="in" onchange="A.df('metodoPago',this.value)">${METODOS.map(m => `<option ${d.metodoPago === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>` : ''}` : ''}
+          <button class="btn primary" style="padding:12px" onclick="A.guardarFactura()">${d._edit ? 'Guardar cambios' : isNota ? 'Emitir nota de crédito' : 'Emitir factura'}</button>
+          <a class="btn" href="${d._edit ? '#/facturas/' + d.id : '#/facturas'}">Cancelar</a>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  A.refreshTotals();
+}
+function itemRow(it, i) {
+  const b = r2(num(it.cantidad) * num(it.precio)), base = r2(b - b * num(it.descuento) / 100);
+  return `<tr>
+    <td><input class="in" list="prodlist" value="${esc(it.descripcion)}" placeholder="Producto o servicio" oninput="A.di(${i},'descripcion',this.value)" onchange="A.pickProd(${i},this.value)">
+      ${it.sku ? `<span class="sub">SKU: ${esc(it.sku)}</span>` : ''}</td>
+    <td><input class="in num" type="number" step="any" min="0" value="${it.cantidad}" oninput="A.di(${i},'cantidad',this.value)"></td>
+    <td><input class="in num" type="number" step="0.01" min="0" value="${it.precio}" oninput="A.di(${i},'precio',this.value)"></td>
+    <td><input class="in num" type="number" step="any" min="0" max="100" value="${it.descuento || 0}" oninput="A.di(${i},'descuento',this.value)"></td>
+    <td><select class="in" onchange="A.di(${i},'itbis',+this.value)">${ITBIS_TASAS.map(t => `<option value="${t}" ${num(it.itbis) === t ? 'selected' : ''}>${t ? t + '%' : 'Exento'}</option>`).join('')}</select></td>
+    <td class="right mono" id="li-${i}">${money(base)}</td>
+    <td><button type="button" class="icon-btn" title="Quitar" onclick="A.delItem(${i})">${icon('trash')}</button></td></tr>`;
+}
+A.df = (k, val, rerender) => { draft[k] = val; if (rerender) renderForm(); };
+A.di = (i, k, val) => {
+  draft.items[i][k] = k === 'descripcion' ? val : val;
+  const it = draft.items[i], b = r2(num(it.cantidad) * num(it.precio));
+  const cell = $('#li-' + i); if (cell) cell.textContent = money(r2(b - b * num(it.descuento) / 100));
+  A.refreshTotals();
+};
+A.pickProd = (i, val) => {
+  const v = String(val).trim().toLowerCase();
+  const p = productos().find(p => p.descripcion.toLowerCase() === v || (p.sku && p.sku.toLowerCase() === v));
+  if (!p) return;
+  Object.assign(draft.items[i], { productoId: p.id, sku: p.sku || '', descripcion: p.descripcion, precio: num(p.precio), itbis: num(p.itbis) });
+  $('#items-body').innerHTML = draft.items.map((it, j) => itemRow(it, j)).join('');
+  A.refreshTotals();
+};
+A.addItem = () => {
+  draft.items.push(blankItem());
+  $('#items-body').innerHTML = draft.items.map((it, j) => itemRow(it, j)).join('');
+  const ins = $('#items-body').querySelectorAll('tr:last-child input'); if (ins[0]) ins[0].focus();
+};
+A.delItem = i => {
+  draft.items.splice(i, 1);
+  if (!draft.items.length) draft.items.push(blankItem());
+  $('#items-body').innerHTML = draft.items.map((it, j) => itemRow(it, j)).join('');
+  A.refreshTotals();
+};
+A.notaAfecta = id => {
+  const o = getF(id);
+  draft.facturaAfectadaId = id;
+  if (o) Object.assign(draft, { clienteId: o.clienteId, items: clone(o.items), propina: o.propina });
+  renderForm();
+};
+A.refreshTotals = () => {
+  const t = calc(draft), el = $('#form-totals'); if (!el) return;
+  let extra = '';
+  if (draft.tipo === 'B04' && draft.facturaAfectadaId) {
+    const o = getF(draft.facturaAfectadaId);
+    if (o) extra = `<div class="row small"><span class="muted">Total factura afectada</span><span>${money(calc(o).total)}</span></div>
+      <div class="row small"><span class="muted">Saldo pendiente actual</span><span>${money(saldo(o))}</span></div>`;
+  }
+  el.innerHTML = `<div class="totals" style="width:100%">
+    <div class="row"><span class="muted">Subtotal</span><span>${money(t.bruto)}</span></div>
+    ${t.descuento ? `<div class="row"><span class="muted">Descuento</span><span>-${money(t.descuento)}</span></div>` : ''}
+    <div class="row"><span class="muted">ITBIS</span><span>${money(t.itbis)}</span></div>
+    ${t.propina ? `<div class="row"><span class="muted">Propina legal</span><span>${money(t.propina)}</span></div>` : ''}
+    <div class="row big"><span>Total</span><span>${money(t.total)}</span></div>${extra}</div>`;
+};
+A.guardarFactura = async () => {
+  const e = emp(), d = draft;
+  const items = d.items.filter(it => String(it.descripcion).trim() && num(it.cantidad) > 0)
+    .map(it => ({ productoId: it.productoId || '', sku: it.sku || '', descripcion: String(it.descripcion).trim(), cantidad: num(it.cantidad), precio: r2(num(it.precio)), descuento: Math.min(100, Math.max(0, num(it.descuento))), itbis: num(it.itbis) }));
+  if (!items.length) return toast('Agrega al menos un ítem con descripción y cantidad.', 'error');
+  if (items.some(it => it.precio < 0)) return toast('Los precios no pueden ser negativos.', 'error');
+  const cli = d.clienteId ? getC(d.clienteId) : null;
+  if (NCF_TIPOS[d.tipo]?.requiereRNC && !(cli && validId(cli.rnc)))
+    return toast(`El comprobante ${d.tipo} requiere un cliente con RNC (9 dígitos) o cédula (11 dígitos).`, 'error');
+  const total = calc({ items, propina: d.propina }).total;
+  if (total <= 0) return toast('El total debe ser mayor que cero.', 'error');
+  if (d.tipo === 'B04') {
+    const o = getF(d.facturaAfectadaId);
+    if (!o) return toast('Selecciona la factura que afecta la nota de crédito.', 'error');
+    const otras = notasDe(o).filter(n => n.id !== d.id).reduce((s, n) => s + calc(n).total, 0);
+    const disponible = r2(calc(o).total - otras);
+    if (total > disponible + 0.004) return toast(`La nota de crédito no puede exceder ${money(disponible)} (total de la factura menos otras notas).`, 'error');
+  }
+  if (A._saving) return;
+  const campos = {
+    clienteId: cli ? cli.id : '',
+    cliente: cli ? { nombre: cli.nombre, rnc: cli.rnc, direccion: cli.direccion, telefono: cli.telefono, email: cli.email } : { nombre: 'Consumidor Final' },
+    fecha: d.fecha || today(),
+    condicion: d.tipo === 'B04' ? 'contado' : d.condicion,
+    diasCredito: d.condicion === 'credito' ? num(d.diasCredito) : 0,
+    vencimiento: d.tipo !== 'B04' && d.condicion === 'credito' ? addDays(d.fecha || today(), d.diasCredito) : '',
+    items, propina: !!d.propina, notas: d.notas || '',
+    facturaAfectadaId: d.tipo === 'B04' ? d.facturaAfectadaId : '',
+  };
+  A._saving = true; busy(true, d._edit ? 'Guardando…' : 'Emitiendo comprobante…');
+  try {
+    let f;
+    if (d._edit) {
+      f = await mutateFactura(d.id, x => {
+        if ((x.pagos || []).length || x.estado === 'anulada') throw new Error('La factura ya tiene pagos o fue anulada; no se puede editar.');
+        Object.assign(x, campos);
+      });
+    } else {
+      const data = { ...campos, creada: new Date().toISOString(), creadaPor: SESSION.user.email, pagos: [], estado: 'emitida' };
+      if (d.pagarAhora && d.tipo !== 'B04') data.pagos.push({ id: uid(), fecha: data.fecha, metodo: d.metodoPago || 'Efectivo', monto: calc(data).total, referencia: '', por: SESSION.user.email });
+      const row = chk(await sb.rpc('emitir_factura', { p_empresa: e.id, p_tipo: d.tipo, p_data: data }));
+      f = fromFacturaRow(row);
+      putCache('facturas', f);
+      reloadEmpresa(e.id).catch(() => { });
+    }
+    toast(d._edit ? 'Cambios guardados' : `${f.numero} emitida${f.ncf ? ' · NCF ' + f.ncf : ''}`, 'ok');
+    draft = null;
+    location.hash = '#/facturas/' + f.id;
+  } catch (err) { console.error(err); toast(errMsg(err), 'error'); }
+  finally { A._saving = false; busy(false); }
+};
+
+/* =========================================================
+   CLIENTES
+   ========================================================= */
+let LC = '';
+function viewClientes(v) {
+  const e = emp();
+  crumbs([e.nombre, '#/dashboard'], ['Clientes']);
+  v.innerHTML = `
+  <div class="page-head"><h1>Clientes</h1>
+    <button class="btn" onclick="A.exportClientes()">${icon('down')} CSV</button>
+    <button class="btn primary" onclick="A.editarCliente()">${icon('plus')} Nuevo cliente</button></div>
+  <div class="toolbar"><div class="search">${icon('search')}<input placeholder="Buscar por nombre, RNC, teléfono…" value="${esc(LC)}" oninput="LC_set(this.value)"></div></div>
+  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Nombre</th><th>RNC / Cédula</th><th class="hide-sm">Teléfono</th><th class="right hide-sm">Facturas</th><th class="right">Balance pendiente</th><th></th></tr></thead>
+  <tbody id="lc-body"></tbody></table></div><div class="table-foot" id="lc-foot"></div></div>`;
+  fillClientes();
+}
+window.LC_set = val => { LC = val; fillClientes(); };
+function fillClientes() {
+  const q = LC.toLowerCase().trim(), qd = digits(q);
+  const fs = facturas();
+  const list = clientes().filter(c => !q || [c.nombre, c.telefono, c.email].join(' ').toLowerCase().includes(q) || (qd.length >= 3 && digits(c.rnc).includes(qd)));
+  $('#lc-body').innerHTML = list.length ? list.map(c => {
+    const mis = fs.filter(f => f.clienteId === c.id && f.tipo !== 'B04' && vigente(f));
+    const bal = r2(mis.reduce((s, f) => s + saldo(f), 0));
+    return `<tr class="click" onclick="A.estadoCuenta('${c.id}')"><td style="font-weight:500">${esc(c.nombre)}${c.email ? `<span class="sub">${esc(c.email)}</span>` : ''}</td>
+      <td class="mono small">${c.rnc ? esc(fmtId(c.rnc)) : '<span class="muted">—</span>'}</td><td class="hide-sm">${esc(c.telefono || '')}</td>
+      <td class="right hide-sm">${mis.length}</td><td class="right ${bal > 0 ? '' : 'muted'}" style="${bal > 0 ? 'color:var(--amber);font-weight:600' : ''}">${money(bal)}</td>
+      <td class="right nowrap" onclick="event.stopPropagation()"><button class="icon-btn" title="Editar" onclick="A.editarCliente('${c.id}')">${icon('edit')}</button>
+      <button class="icon-btn" title="Eliminar" onclick="A.borrarCliente('${c.id}')">${icon('trash')}</button></td></tr>`;
+  }).join('') : `<tr><td colspan="6"><div class="empty">${clientes().length ? 'Sin resultados.' : 'Aún no tienes clientes registrados.'}</div></td></tr>`;
+  $('#lc-foot').textContent = `${list.length} clientes`;
+}
+A.editarCliente = (id, fromForm) => {
+  const c = id ? getC(id) : { nombre: '', rnc: '', telefono: '', email: '', direccion: '', notas: '' };
+  modal(id ? 'Editar cliente' : 'Nuevo cliente', `
+    <div class="fgrid">
+      <div class="field" style="grid-column:1/-1"><label>Nombre o razón social *</label><input class="in" name="nombre" value="${esc(c.nombre)}" required></div>
+      <div class="field"><label>RNC o cédula</label><input class="in" name="rnc" value="${esc(fmtId(c.rnc))}" placeholder="131-00000-1"><span class="hint">RNC 9 dígitos · Cédula 11 dígitos</span></div>
+      <div class="field"><label>Teléfono</label><input class="in" name="telefono" value="${esc(c.telefono)}" placeholder="(809) 000-0000"></div>
+      <div class="field" style="grid-column:1/-1"><label>Email</label><input class="in" name="email" type="email" value="${esc(c.email)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Dirección</label><input class="in" name="direccion" value="${esc(c.direccion)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Notas internas</label><textarea class="in" name="notas" rows="2">${esc(c.notas || '')}</textarea></div>
+    </div>`, {
+    onOk: async form => {
+      const nombre = fv(form, 'nombre'), rnc = digits(fv(form, 'rnc'));
+      if (!nombre) { toast('El nombre es obligatorio.', 'error'); return false; }
+      if (rnc && !validId(rnc)) { toast('El RNC debe tener 9 dígitos o la cédula 11.', 'error'); return false; }
+      const dup = rnc && clientes().find(x => x.rnc === rnc && x.id !== id);
+      if (dup) { toast(`Ya existe un cliente con ese RNC/cédula: ${dup.nombre}`, 'error'); return false; }
+      const data = { nombre, rnc, telefono: fv(form, 'telefono'), email: fv(form, 'email'), direccion: fv(form, 'direccion'), notas: fv(form, 'notas') };
+      const target = id ? { ...getC(id), ...data } : { id: uid(), empresaId: DB.activeId, creado: new Date().toISOString(), ...data };
+      chk(await sb.from('clientes').upsert({ id: target.id, empresa_id: DB.activeId, data: stripIds(target) }));
+      putCache('clientes', target);
+      toast('Cliente guardado', 'ok');
+      if (fromForm && draft) { draft.clienteId = target.id; setTimeout(() => renderForm(), 0); }
+      else setTimeout(() => route(), 0);
+    }
+  });
+};
+A.borrarCliente = id => {
+  const c = getC(id);
+  if (DB.facturas.some(f => f.clienteId === id)) return toast('No se puede eliminar: el cliente tiene facturas. Puedes editarlo.', 'error');
+  confirmar('Eliminar cliente', `¿Eliminar a <b>${esc(c.nombre)}</b>?`, async () => {
+    chk(await sb.from('clientes').delete().eq('id', id));
+    DB.clientes = DB.clientes.filter(x => x.id !== id); route(true);
+  }, { okText: 'Eliminar' });
+};
+A.estadoCuenta = id => {
+  const c = getC(id);
+  const fs = facturas().filter(f => f.clienteId === id).sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const bal = r2(fs.filter(f => f.tipo !== 'B04').reduce((s, f) => s + saldo(f), 0));
+  const tot = r2(fs.filter(vigente).reduce((s, f) => s + signo(f) * calc(f).total, 0));
+  modal(`Estado de cuenta · ${esc(c.nombre)}`, `
+    <div class="grid g3 mb">
+      <div class="card kpi"><div class="l">Facturado</div><div class="v" style="font-size:19px">${money(tot)}</div></div>
+      <div class="card kpi"><div class="l">Balance pendiente</div><div class="v" style="font-size:19px;color:${bal > 0 ? 'var(--amber)' : 'inherit'}">${money(bal)}</div></div>
+      <div class="card kpi"><div class="l">RNC / Cédula</div><div class="v mono" style="font-size:17px">${esc(fmtId(c.rnc) || '—')}</div></div>
+    </div>
+    ${fs.length ? `<div class="card tbl-wrap"><table><thead><tr><th>Número</th><th>NCF</th><th>Fecha</th><th class="right">Total</th><th class="right">Saldo</th><th>Estado</th></tr></thead><tbody>
+      ${fs.map(f => `<tr class="click" onclick="A.closeModal();location.hash='#/facturas/${f.id}'"><td class="mono">${esc(f.numero)}</td><td class="mono small">${esc(f.ncf || '—')}</td><td class="nowrap">${fdate(f.fecha)}</td>
+      <td class="right">${f.tipo === 'B04' ? '-' : ''}${money(calc(f).total)}</td><td class="right">${money(saldo(f))}</td><td>${pill(estado(f))}</td></tr>`).join('')}
+    </tbody></table></div>` : '<div class="empty">Este cliente no tiene facturas.</div>'}
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+      <button type="button" class="btn" onclick="A.closeModal();A.editarCliente('${c.id}')">${icon('edit')} Editar cliente</button>
+      <button type="button" class="btn primary" onclick="A.facturarA('${c.id}')">${icon('plus')} Nueva factura</button>
+    </div>`, { wide: true, noFooter: true });
+};
+let pendingCliente = null;
+A.facturarA = id => { A.closeModal(); pendingCliente = id; location.hash = '#/facturas/nueva'; };
+A.exportClientes = () => downloadCSV(`clientes-${emp().nombre}.csv`, [['Nombre', 'RNC/Cédula', 'Teléfono', 'Email', 'Dirección'],
+  ...clientes().map(c => [c.nombre, fmtId(c.rnc), c.telefono, c.email, c.direccion])]);
+
+/* =========================================================
+   PRODUCTOS
+   ========================================================= */
+let LP = '';
+function viewProductos(v) {
+  const e = emp();
+  crumbs([e.nombre, '#/dashboard'], ['Productos y servicios']);
+  v.innerHTML = `
+  <div class="page-head"><h1>Productos y servicios</h1>
+    <button class="btn" onclick="A.exportProductos()">${icon('down')} CSV</button>
+    <button class="btn primary" onclick="A.editarProducto()">${icon('plus')} Nuevo</button></div>
+  <div class="toolbar"><div class="search">${icon('search')}<input placeholder="Buscar por descripción o SKU…" value="${esc(LP)}" oninput="LP_set(this.value)"></div></div>
+  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Descripción</th><th class="hide-sm">Tipo</th><th class="right">Precio</th><th class="right">ITBIS</th><th class="right hide-sm">Precio + ITBIS</th><th></th></tr></thead>
+  <tbody id="lp-body"></tbody></table></div><div class="table-foot" id="lp-foot"></div></div>`;
+  fillProductos();
+}
+window.LP_set = val => { LP = val; fillProductos(); };
+function fillProductos() {
+  const q = LP.toLowerCase().trim();
+  const list = productos().filter(p => !q || (p.descripcion + ' ' + (p.sku || '')).toLowerCase().includes(q));
+  $('#lp-body').innerHTML = list.length ? list.map(p => `<tr class="click" onclick="A.editarProducto('${p.id}')">
+    <td class="mono small">${esc(p.sku || '—')}</td><td style="font-weight:500">${esc(p.descripcion)}</td>
+    <td class="hide-sm"><span class="tag">${p.tipo === 'servicio' ? 'Servicio' : 'Bien'}</span></td>
+    <td class="right mono">${money(p.precio)}</td><td class="right">${num(p.itbis) ? num(p.itbis) + '%' : 'Exento'}</td>
+    <td class="right mono hide-sm">${money(r2(num(p.precio) * (1 + num(p.itbis) / 100)))}</td>
+    <td class="right" onclick="event.stopPropagation()"><button class="icon-btn" title="Eliminar" onclick="A.borrarProducto('${p.id}')">${icon('trash')}</button></td></tr>`).join('')
+    : `<tr><td colspan="7"><div class="empty">${productos().length ? 'Sin resultados.' : 'Agrega tus productos y servicios para facturar más rápido.'}</div></td></tr>`;
+  $('#lp-foot').textContent = `${list.length} productos/servicios`;
+}
+A.editarProducto = id => {
+  const e = emp();
+  const p = id ? getP(id) : { sku: '', descripcion: '', tipo: 'bien', precio: '', itbis: e.itbisPredeterminado ?? 18 };
+  modal(id ? 'Editar producto/servicio' : 'Nuevo producto/servicio', `
+    <div class="fgrid">
+      <div class="field" style="grid-column:1/-1"><label>Descripción *</label><input class="in" name="descripcion" value="${esc(p.descripcion)}" required></div>
+      <div class="field"><label>SKU / Código</label><input class="in" name="sku" value="${esc(p.sku)}"></div>
+      <div class="field"><label>Tipo</label><select class="in" name="tipo"><option value="bien" ${p.tipo !== 'servicio' ? 'selected' : ''}>Bien</option><option value="servicio" ${p.tipo === 'servicio' ? 'selected' : ''}>Servicio</option></select></div>
+      <div class="field"><label>Precio (sin ITBIS) *</label><input class="in" name="precio" type="number" step="0.01" min="0" value="${p.precio}" required></div>
+      <div class="field"><label>ITBIS</label><select class="in" name="itbis">${ITBIS_TASAS.map(t => `<option value="${t}" ${num(p.itbis) === t ? 'selected' : ''}>${t ? t + '%' : 'Exento'}</option>`).join('')}</select></div>
+    </div>`, {
+    onOk: async form => {
+      const descripcion = fv(form, 'descripcion');
+      if (!descripcion) { toast('La descripción es obligatoria.', 'error'); return false; }
+      const data = { descripcion, sku: fv(form, 'sku'), tipo: fv(form, 'tipo'), precio: r2(num(fv(form, 'precio'))), itbis: num(fv(form, 'itbis')) };
+      const target = id ? { ...getP(id), ...data } : { id: uid(), empresaId: DB.activeId, ...data };
+      chk(await sb.from('productos').upsert({ id: target.id, empresa_id: DB.activeId, data: stripIds(target) }));
+      putCache('productos', target);
+      toast('Guardado', 'ok'); setTimeout(() => route(true), 0);
+    }
+  });
+};
+A.borrarProducto = id => confirmar('Eliminar', `¿Eliminar <b>${esc(getP(id).descripcion)}</b> del catálogo? Las facturas existentes no se modifican.`, async () => {
+  chk(await sb.from('productos').delete().eq('id', id));
+  DB.productos = DB.productos.filter(p => p.id !== id); route(true);
+}, { okText: 'Eliminar' });
+A.exportProductos = () => downloadCSV(`productos-${emp().nombre}.csv`, [['SKU', 'Descripción', 'Tipo', 'Precio', 'ITBIS %'],
+  ...productos().map(p => [p.sku, p.descripcion, p.tipo, p.precio, p.itbis])]);
+
+/* =========================================================
+   REPORTES
+   ========================================================= */
+const LR = { tab: 'resumen', desde: '', hasta: '' };
+function viewReportes(v) {
+  const e = emp();
+  crumbs([e.nombre, '#/dashboard'], ['Reportes']);
+  if (!LR.desde) { const t = today(); LR.desde = t.slice(0, 8) + '01'; LR.hasta = t; }
+  const tabs = [['resumen', 'Resumen de ventas'], ['607', 'Ventas 607'], ['608', 'Anulados 608'], ['cxc', 'Cuentas por cobrar'], ['productos', 'Por producto']];
+  v.innerHTML = `
+  <div class="page-head"><h1>Reportes</h1></div>
+  <div class="toolbar">
+    <label class="chip-select"><span>Desde:</span><input type="date" value="${LR.desde}" onchange="A.lr('desde',this.value)"></label>
+    <label class="chip-select"><span>Hasta:</span><input type="date" value="${LR.hasta}" onchange="A.lr('hasta',this.value)"></label>
+    <label class="chip-select"><span>Período:</span><select onchange="A.lrPeriodo(this.value)"><option value="">Personalizado</option>
+      <option value="mes">Este mes</option><option value="mesant">Mes anterior</option><option value="anio">Este año</option><option value="anioant">Año anterior</option></select></label>
+  </div>
+  <div class="tabs">${tabs.map(([k, l]) => `<button class="${LR.tab === k ? 'active' : ''}" onclick="A.lr('tab','${k}')">${l}</button>`).join('')}</div>
+  <div id="rep"></div>`;
+  const rep = $('#rep');
+  ({ resumen: repResumen, 607: rep607, 608: rep608, cxc: repCxC, productos: repProductos })[LR.tab](rep);
+}
+A.lr = (k, val) => { LR[k] = val; viewReportes($('#view')); };
+A.lrPeriodo = p => {
+  const d = new Date(), y = d.getFullYear(), m = d.getMonth();
+  if (p === 'mes') { LR.desde = iso(new Date(y, m, 1)); LR.hasta = iso(new Date(y, m + 1, 0)); }
+  if (p === 'mesant') { LR.desde = iso(new Date(y, m - 1, 1)); LR.hasta = iso(new Date(y, m, 0)); }
+  if (p === 'anio') { LR.desde = `${y}-01-01`; LR.hasta = `${y}-12-31`; }
+  if (p === 'anioant') { LR.desde = `${y - 1}-01-01`; LR.hasta = `${y - 1}-12-31`; }
+  viewReportes($('#view'));
+};
+const enRango = f => f.fecha >= LR.desde && f.fecha <= LR.hasta;
+const fname = n => `${n}-${emp().nombre.replace(/[^\w]+/g, '_')}-${LR.desde}_${LR.hasta}.csv`;
+function repResumen(el) {
+  const fs = facturas().filter(f => enRango(f) && vigente(f));
+  const grupos = {};
+  fs.forEach(f => {
+    const g = grupos[f.tipo] = grupos[f.tipo] || { n: 0, base: 0, itbis: 0, propina: 0, total: 0 };
+    const t = calc(f), s = signo(f);
+    g.n++; g.base += s * t.base; g.itbis += s * t.itbis; g.propina += s * t.propina; g.total += s * t.total;
+  });
+  const tot = Object.values(grupos).reduce((a, g) => ({ n: a.n + g.n, base: a.base + g.base, itbis: a.itbis + g.itbis, propina: a.propina + g.propina, total: a.total + g.total }), { n: 0, base: 0, itbis: 0, propina: 0, total: 0 });
+  const cobrado = r2(facturas().filter(vigente).reduce((s, f) => s + (f.pagos || []).filter(p => p.fecha >= LR.desde && p.fecha <= LR.hasta).reduce((a, p) => a + num(p.monto), 0), 0));
+  const porMetodo = {};
+  facturas().filter(vigente).forEach(f => (f.pagos || []).filter(p => p.fecha >= LR.desde && p.fecha <= LR.hasta).forEach(p => porMetodo[p.metodo] = (porMetodo[p.metodo] || 0) + num(p.monto)));
+  const orden = ['B01', 'B02', 'B14', 'B15', TIPO_NONE, 'B04'].filter(t => grupos[t]);
+  el.innerHTML = `
+  <div class="grid g4 mb">
+    <div class="card kpi"><div class="l">Ventas netas (sin ITBIS)</div><div class="v">${money(tot.base)}</div></div>
+    <div class="card kpi"><div class="l">ITBIS facturado</div><div class="v">${money(tot.itbis)}</div></div>
+    <div class="card kpi"><div class="l">Total facturado</div><div class="v">${money(tot.total)}</div><div class="d">${tot.n} documentos${tot.propina ? ` · propina ${money(tot.propina)}` : ''}</div></div>
+    <div class="card kpi"><div class="l">Cobrado en el período</div><div class="v">${money(cobrado)}</div></div>
+  </div>
+  <div class="grid" style="grid-template-columns:2fr 1fr">
+    <div class="card"><div class="card-h">Por tipo de comprobante<span class="sp"></span><button class="btn sm" onclick="A.csvResumen()">${icon('down')} CSV</button></div>
+      <div class="tbl-wrap"><table><thead><tr><th>Comprobante</th><th class="right">Cant.</th><th class="right">Monto sin ITBIS</th><th class="right">ITBIS</th><th class="right">Total</th></tr></thead><tbody>
+      ${orden.length ? orden.map(t => { const g = grupos[t]; return `<tr><td>${t === TIPO_NONE ? '' : `<span class="tag">${t}</span> `}${nombreTipo(t)}</td><td class="right">${g.n}</td><td class="right">${money(g.base)}</td><td class="right">${money(g.itbis)}</td><td class="right">${money(g.total)}</td></tr>`; }).join('')
+        + `<tr style="font-weight:700"><td>Total</td><td class="right">${tot.n}</td><td class="right">${money(tot.base)}</td><td class="right">${money(tot.itbis)}</td><td class="right">${money(tot.total)}</td></tr>`
+        : `<tr><td colspan="5"><div class="empty">Sin ventas en el período.</div></td></tr>`}
+      </tbody></table></div></div>
+    <div class="card"><div class="card-h">Cobros por método</div><table><tbody>
+      ${Object.keys(porMetodo).length ? Object.entries(porMetodo).map(([m, val]) => `<tr><td>${esc(m)}</td><td class="right">${money(val)}</td></tr>`).join('') : `<tr><td><div class="empty">Sin cobros.</div></td></tr>`}
+    </tbody></table></div>
+  </div>`;
+  A.csvResumen = () => downloadCSV(fname('resumen'), [['Comprobante', 'Cantidad', 'Monto sin ITBIS', 'ITBIS', 'Propina', 'Total'],
+    ...orden.map(t => [t + ' ' + nombreTipo(t), grupos[t].n, r2(grupos[t].base), r2(grupos[t].itbis), r2(grupos[t].propina), r2(grupos[t].total)])]);
+}
+function rows607() {
+  return facturas().filter(f => enRango(f) && vigente(f) && f.ncf).sort((a, b) => a.fecha.localeCompare(b.fecha) || a.ncf.localeCompare(b.ncf)).map(f => {
+    const t = calc(f), c = f.cliente || {}, rnc = digits(c.rnc);
+    const pm = { Efectivo: 0, 'Cheque/Transferencia': 0, Tarjeta: 0, Otro: 0 };
+    (f.pagos || []).forEach(p => {
+      const k = p.metodo === 'Efectivo' ? 'Efectivo' : p.metodo === 'Tarjeta' ? 'Tarjeta' : (p.metodo === 'Cheque' || p.metodo === 'Transferencia') ? 'Cheque/Transferencia' : 'Otro';
+      pm[k] += num(p.monto);
+    });
+    const credito = f.tipo === 'B04' ? 0 : Math.max(0, r2(t.total - pagado(f)));
+    const afect = f.facturaAfectadaId ? getF(f.facturaAfectadaId) : null;
+    return { f, rnc, tipoId: rnc.length === 9 ? '1' : rnc.length === 11 ? '2' : '', ncfMod: afect?.ncf || '', t, pm, credito };
+  });
+}
+function rep607(el) {
+  const rows = rows607();
+  el.innerHTML = `
+  <div class="alert info mb">Listado de ventas con NCF del período, con las columnas del formato 607 de la DGII. Revísalo antes de cargarlo en la Oficina Virtual o en la herramienta de pre-validación.</div>
+  <div class="card"><div class="card-h">${rows.length} comprobantes<span class="sp"></span><button class="btn sm" onclick="A.csv607()">${icon('down')} Exportar CSV</button></div>
+  <div class="tbl-wrap"><table><thead><tr><th>RNC/Cédula</th><th>Tipo ID</th><th>NCF</th><th>NCF modificado</th><th>Fecha</th><th class="right">Monto facturado</th><th class="right">ITBIS</th><th class="right">Propina</th><th class="right">Efectivo</th><th class="right">Cheque/Transf.</th><th class="right">Tarjeta</th><th class="right">Crédito</th></tr></thead><tbody>
+  ${rows.length ? rows.map(r => `<tr class="click" onclick="location.hash='#/facturas/${r.f.id}'"><td class="mono small">${esc(r.rnc || '—')}</td><td>${r.tipoId || '—'}</td><td class="mono small">${esc(r.f.ncf)}</td><td class="mono small">${esc(r.ncfMod || '')}</td>
+    <td class="nowrap">${fdate(r.f.fecha)}</td><td class="right">${money(r.t.base)}</td><td class="right">${money(r.t.itbis)}</td><td class="right">${money(r.t.propina)}</td>
+    <td class="right">${money(r.pm.Efectivo)}</td><td class="right">${money(r.pm['Cheque/Transferencia'])}</td><td class="right">${money(r.pm.Tarjeta)}</td><td class="right">${money(r.credito)}</td></tr>`).join('')
+    : `<tr><td colspan="12"><div class="empty">Sin comprobantes en el período.</div></td></tr>`}
+  </tbody></table></div></div>`;
+}
+A.csv607 = () => {
+  const rows = rows607();
+  downloadCSV(fname('607'), [['RNC/Cédula', 'Tipo Identificación', 'Número Comprobante Fiscal', 'NCF Modificado', 'Tipo de Ingreso', 'Fecha Comprobante', 'Fecha Retención', 'Monto Facturado', 'ITBIS Facturado', 'ITBIS Retenido por Terceros', 'ITBIS Percibido', 'Retención Renta por Terceros', 'ISR Percibido', 'Impuesto Selectivo al Consumo', 'Otros Impuestos/Tasas', 'Monto Propina Legal', 'Efectivo', 'Cheque/Transferencia/Depósito', 'Tarjeta Débito/Crédito', 'Venta a Crédito', 'Bonos o Certificados de Regalo', 'Permuta', 'Otras Formas de Ventas'],
+    ...rows.map(r => [r.rnc, r.tipoId, r.f.ncf, r.ncfMod, '01', r.f.fecha.replace(/-/g, ''), '', r.t.base.toFixed(2), r.t.itbis.toFixed(2), '', '', '', '', '', '', r.t.propina.toFixed(2),
+      r2(r.pm.Efectivo).toFixed(2), r2(r.pm['Cheque/Transferencia']).toFixed(2), r2(r.pm.Tarjeta).toFixed(2), r.credito.toFixed(2), '', '', r2(r.pm.Otro).toFixed(2)])]);
+};
+function rep608(el) {
+  const rows = facturas().filter(f => f.estado === 'anulada' && f.ncf && f.anulada && f.anulada.fecha >= LR.desde && f.anulada.fecha <= LR.hasta)
+    .sort((a, b) => a.anulada.fecha.localeCompare(b.anulada.fecha));
+  el.innerHTML = `
+  <div class="card"><div class="card-h">${rows.length} comprobantes anulados<span class="sp"></span><button class="btn sm" id="csv608">${icon('down')} Exportar CSV</button></div>
+  <div class="tbl-wrap"><table><thead><tr><th>NCF</th><th>Factura</th><th>Fecha comprobante</th><th>Fecha anulación</th><th>Tipo de anulación</th></tr></thead><tbody>
+  ${rows.length ? rows.map(f => `<tr class="click" onclick="location.hash='#/facturas/${f.id}'"><td class="mono">${esc(f.ncf)}</td><td class="mono">${esc(f.numero)}</td><td>${fdate(f.fecha)}</td><td>${fdate(f.anulada.fecha)}</td><td>${f.anulada.motivo} · ${esc(MOTIVOS_ANULACION[f.anulada.motivo] || '')}</td></tr>`).join('')
+    : `<tr><td colspan="5"><div class="empty">Sin anulaciones en el período.</div></td></tr>`}
+  </tbody></table></div></div>`;
+  $('#csv608').onclick = () => downloadCSV(fname('608'), [['Número Comprobante Fiscal', 'Fecha Comprobante', 'Tipo de Anulación'], ...rows.map(f => [f.ncf, f.anulada.fecha.replace(/-/g, ''), f.anulada.motivo])]);
+}
+function repCxC(el) {
+  const hoy = today();
+  const pend = facturas().filter(f => vigente(f) && saldo(f) > 0);
+  const B = ['Corriente', '1-30', '31-60', '61-90', '+90'];
+  const porCli = {};
+  pend.forEach(f => {
+    const k = f.clienteId || '_cf';
+    const c = porCli[k] = porCli[k] || { nombre: f.cliente?.nombre || 'Consumidor Final', id: f.clienteId, b: [0, 0, 0, 0, 0], total: 0, n: 0 };
+    const dias = daysBetween(f.vencimiento || f.fecha, hoy);
+    const i = dias <= 0 ? 0 : dias <= 30 ? 1 : dias <= 60 ? 2 : dias <= 90 ? 3 : 4;
+    const s = saldo(f); c.b[i] += s; c.total += s; c.n++;
+  });
+  const list = Object.values(porCli).sort((a, b) => b.total - a.total);
+  const tot = [0, 0, 0, 0, 0]; list.forEach(c => c.b.forEach((x, i) => tot[i] += x));
+  el.innerHTML = `
+  <div class="alert info mb">Antigüedad de saldos al ${fdate(hoy)} (no depende del rango de fechas). Los días se cuentan desde el vencimiento de cada factura.</div>
+  <div class="card"><div class="card-h">${pend.length} facturas pendientes<span class="sp"></span><button class="btn sm" id="csvcxc">${icon('down')} Exportar CSV</button></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Cliente</th><th class="right">Facturas</th>${B.map(b => `<th class="right">${b}</th>`).join('')}<th class="right">Total</th></tr></thead><tbody>
+  ${list.length ? list.map(c => `<tr ${c.id ? `class="click" onclick="A.estadoCuenta('${c.id}')"` : ''}><td>${esc(c.nombre)}</td><td class="right">${c.n}</td>${c.b.map((x, i) => `<td class="right" style="${x && i >= 2 ? 'color:var(--red)' : ''}">${x ? money(x) : '<span class="muted">—</span>'}</td>`).join('')}<td class="right" style="font-weight:700">${money(c.total)}</td></tr>`).join('')
+    + `<tr style="font-weight:700"><td>Total</td><td class="right">${pend.length}</td>${tot.map(x => `<td class="right">${money(x)}</td>`).join('')}<td class="right">${money(tot.reduce((a, b) => a + b, 0))}</td></tr>`
+    : `<tr><td colspan="8"><div class="empty">No hay cuentas por cobrar. 🎉</div></td></tr>`}
+  </tbody></table></div></div>`;
+  $('#csvcxc').onclick = () => downloadCSV(`cxc-${emp().nombre}-${hoy}.csv`, [['Cliente', 'Facturas', ...B, 'Total'], ...list.map(c => [c.nombre, c.n, ...c.b.map(r2), r2(c.total)])]);
+}
+function repProductos(el) {
+  const m = {};
+  facturas().filter(f => enRango(f) && vigente(f)).forEach(f => f.items.forEach(it => {
+    const k = (it.sku || '') + '|' + it.descripcion.toLowerCase();
+    const r = m[k] = m[k] || { sku: it.sku, desc: it.descripcion, cant: 0, base: 0, itbis: 0 };
+    const b = num(it.cantidad) * num(it.precio), base = b - b * num(it.descuento) / 100, s = signo(f);
+    r.cant += s * num(it.cantidad); r.base += s * base; r.itbis += s * base * num(it.itbis) / 100;
+  }));
+  const list = Object.values(m).sort((a, b) => b.base - a.base);
+  el.innerHTML = `<div class="card"><div class="card-h">Ventas por producto/servicio<span class="sp"></span><button class="btn sm" id="csvprod">${icon('down')} Exportar CSV</button></div>
+  <div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Descripción</th><th class="right">Cantidad</th><th class="right">Monto sin ITBIS</th><th class="right">ITBIS</th></tr></thead><tbody>
+  ${list.length ? list.map(r => `<tr><td class="mono small">${esc(r.sku || '—')}</td><td>${esc(r.desc)}</td><td class="right">${r2(r.cant)}</td><td class="right">${money(r.base)}</td><td class="right">${money(r.itbis)}</td></tr>`).join('')
+    : `<tr><td colspan="5"><div class="empty">Sin ventas en el período.</div></td></tr>`}
+  </tbody></table></div></div>`;
+  $('#csvprod').onclick = () => downloadCSV(fname('ventas-por-producto'), [['SKU', 'Descripción', 'Cantidad', 'Monto sin ITBIS', 'ITBIS'], ...list.map(r => [r.sku, r.desc, r2(r.cant), r2(r.base), r2(r.itbis)])]);
+}
+
+/* =========================================================
+   EMPRESAS
+   ========================================================= */
+function viewEmpresas(v) {
+  crumbs(['Empresas']);
+  v.innerHTML = `
+  <div class="page-head"><h1>Empresas</h1><button class="btn primary" onclick="A.editarEmpresa()">${icon('plus')} Nueva empresa</button></div>
+  ${DB.empresas.length ? `<div class="grid g3">${DB.empresas.map(e => {
+    const seqs = Object.keys(NCF_TIPOS).map(t => seqInfo(e, t) && { t, s: seqInfo(e, t) }).filter(Boolean);
+    const admin = ['dueno', 'admin'].includes(e.rol);
+    return `<div class="card emp-card">
+      <div class="top">${e.logo ? `<img src="${e.logo}" alt="">` : `<div class="emp-logo">${initials(e.nombre)}</div>`}
+        <div style="min-width:0;flex:1"><div style="font-weight:700">${esc(e.nombre)}</div><div class="muted small">RNC ${esc(fmtId(e.rnc) || '—')}</div></div>
+        ${e.id === DB.activeId ? '<span class="pill green">Activa</span>' : ''}</div>
+      <div class="small muted">${{ dueno: 'Dueño', admin: 'Administrador', usuario: 'Usuario' }[e.rol] || ''} · Numeración ${esc(e.prefijo || 'INV')}-${pad(e.proximoNumero || 1)}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${seqs.length ? seqs.map(({ t, s }) => `<span class="tag" title="Vence ${fdate(s.vence)}" style="${s.vencida || s.restantes === 0 ? 'background:var(--red-bg);color:var(--red)' : ''}">${t}: ${s.restantes === Infinity ? '∞' : s.restantes}</span>`).join('') : '<span class="small" style="color:var(--amber)">Sin secuencias NCF</span>'}</div>
+      <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
+        ${e.id !== DB.activeId ? `<button class="btn sm primary" onclick="A.cambiarEmpresa('${e.id}')">Usar esta empresa</button>` : ''}
+        ${admin ? `<button class="btn sm" onclick="A.editarEmpresa('${e.id}')">${icon('edit')} Editar</button>` : ''}
+        <button class="btn sm" onclick="A.equipo('${e.id}')">${icon('users')} Equipo</button>
+        ${e.rol === 'dueno' ? `<button class="btn sm danger" onclick="A.borrarEmpresa('${e.id}')">${icon('trash')}</button>` : ''}
+      </div></div>`;
+  }).join('')}</div>` : `<div class="card"><div class="empty">No hay empresas. Crea la primera para empezar a facturar.</div></div>`}`;
+}
+let logoTmp = null;
+A.editarEmpresa = id => {
+  const e = id ? DB.empresas.find(x => x.id === id) : {
+    nombre: '', razonSocial: '', rnc: '', telefono: '', email: '', direccion: '', web: '', logo: '', prefijo: 'INV', proximoNumero: 1, proximoNC: 1,
+    tipoPredeterminado: 'B02', condicionPredeterminada: 'contado', itbisPredeterminado: 18, notaPie: '', secuencias: {},
+  };
+  logoTmp = e.logo || '';
+  const venceDef = `${new Date().getFullYear() + 1}-12-31`;
+  modal(id ? 'Editar empresa' : 'Nueva empresa', `
+    <div class="section-title" style="margin-top:0">Datos fiscales</div>
+    <div class="fgrid">
+      <div class="field"><label>Nombre comercial *</label><input class="in" name="nombre" value="${esc(e.nombre)}" required></div>
+      <div class="field"><label>Razón social</label><input class="in" name="razonSocial" value="${esc(e.razonSocial)}"></div>
+      <div class="field"><label>RNC / Cédula *</label><input class="in" name="rnc" value="${esc(fmtId(e.rnc))}" placeholder="131-00000-1"></div>
+      <div class="field"><label>Teléfono</label><input class="in" name="telefono" value="${esc(e.telefono)}"></div>
+      <div class="field"><label>Email</label><input class="in" name="email" value="${esc(e.email)}"></div>
+      <div class="field"><label>Sitio web</label><input class="in" name="web" value="${esc(e.web)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Dirección</label><input class="in" name="direccion" value="${esc(e.direccion)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>Logo</label>
+        <div style="display:flex;gap:12px;align-items:center">
+          <div id="logo-prev">${logoTmp ? `<img src="${logoTmp}" style="width:56px;height:56px;object-fit:contain;border-radius:8px;background:var(--soft)">` : `<div class="emp-logo" style="width:56px;height:56px">—</div>`}</div>
+          <input type="file" accept="image/*" onchange="A.logoFile(this)">
+          <button type="button" class="btn sm" onclick="A.logoClear()">Quitar</button>
+        </div></div>
+    </div>
+    <div class="section-title">Facturación</div>
+    <div class="fgrid">
+      <div class="field"><label>Prefijo de factura</label><input class="in" name="prefijo" value="${esc(e.prefijo || 'INV')}"></div>
+      <div class="field"><label>Próximo número de factura</label><input class="in" name="proximoNumero" type="number" min="1" value="${e.proximoNumero || 1}"></div>
+      <div class="field"><label>Comprobante predeterminado</label><select class="in" name="tipoPredeterminado">${[...TIPOS_FACTURA, TIPO_NONE].map(t => `<option value="${t}" ${e.tipoPredeterminado === t ? 'selected' : ''}>${t === TIPO_NONE ? 'Sin comprobante' : t + ' · ' + nombreTipo(t)}</option>`).join('')}</select></div>
+      <div class="field"><label>Condición predeterminada</label><select class="in" name="condicionPredeterminada"><option value="contado" ${e.condicionPredeterminada !== 'credito' ? 'selected' : ''}>Contado</option><option value="credito" ${e.condicionPredeterminada === 'credito' ? 'selected' : ''}>Crédito</option></select></div>
+      <div class="field"><label>ITBIS predeterminado</label><select class="in" name="itbisPredeterminado">${ITBIS_TASAS.map(t => `<option value="${t}" ${num(e.itbisPredeterminado ?? 18) === t ? 'selected' : ''}>${t ? t + '%' : 'Exento'}</option>`).join('')}</select></div>
+      <div class="field" style="grid-column:1/-1"><label>Nota al pie (predeterminada en cada factura)</label><textarea class="in" name="notaPie" rows="2" placeholder="Ej.: Gracias por su compra. Cuentas bancarias: …">${esc(e.notaPie || '')}</textarea></div>
+    </div>
+    <div class="section-title">Secuencias de NCF autorizadas por la DGII</div>
+    <div class="tbl-wrap"><table class="seq-tbl"><thead><tr><th>Activa</th><th>Tipo</th><th>Desde</th><th>Hasta</th><th>Último usado</th><th>Vence</th></tr></thead><tbody>
+    ${Object.keys(NCF_TIPOS).map(t => {
+      const s = (e.secuencias || {})[t] || { activo: false, desde: 1, hasta: '', actual: 0, vence: venceDef };
+      return `<tr><td><input type="checkbox" name="s_${t}_activo" ${s.activo ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--primary)"></td>
+        <td class="nowrap"><span class="tag">${t}</span> <span class="small">${nombreTipo(t)}</span></td>
+        <td><input class="in" type="number" min="1" name="s_${t}_desde" value="${s.desde ?? 1}" style="width:90px"></td>
+        <td><input class="in" type="number" min="1" name="s_${t}_hasta" value="${s.hasta ?? ''}" style="width:90px" placeholder="—"></td>
+        <td><input class="in" type="number" min="0" name="s_${t}_actual" value="${s.actual ?? 0}" style="width:90px"></td>
+        <td><input class="in" type="date" name="s_${t}_vence" value="${s.vence || ''}"></td></tr>`;
+    }).join('')}</tbody></table></div>
+    <div class="hint small muted" style="margin-top:6px">"Último usado" es el último número emitido (0 si no has usado ninguno). El próximo NCF será el siguiente número.</div>`,
+    {
+      wide: true, onOk: async form => {
+        const nombre = fv(form, 'nombre'), rnc = digits(fv(form, 'rnc'));
+        if (!nombre) { toast('El nombre es obligatorio.', 'error'); return false; }
+        if (rnc && !validId(rnc)) { toast('El RNC debe tener 9 dígitos o la cédula 11.', 'error'); return false; }
+        const secuencias = {};
+        for (const t of Object.keys(NCF_TIPOS)) {
+          const s = { activo: fv(form, `s_${t}_activo`), desde: num(fv(form, `s_${t}_desde`)) || 1, hasta: num(fv(form, `s_${t}_hasta`)) || '', actual: num(fv(form, `s_${t}_actual`)), vence: fv(form, `s_${t}_vence`) };
+          if (s.activo && s.hasta && s.hasta < s.desde) { toast(`Secuencia ${t}: "hasta" debe ser mayor que "desde".`, 'error'); return false; }
+          if (s.activo && !s.vence) { toast(`Secuencia ${t}: indica la fecha de vencimiento.`, 'error'); return false; }
+          secuencias[t] = s;
+        }
+        const data = {
+          nombre, rnc, razonSocial: fv(form, 'razonSocial'), telefono: fv(form, 'telefono'), email: fv(form, 'email'), web: fv(form, 'web'), direccion: fv(form, 'direccion'),
+          logo: logoTmp || '', prefijo: fv(form, 'prefijo') || 'INV', proximoNumero: Math.max(1, num(fv(form, 'proximoNumero'))),
+          tipoPredeterminado: fv(form, 'tipoPredeterminado'), condicionPredeterminada: fv(form, 'condicionPredeterminada'),
+          itbisPredeterminado: num(fv(form, 'itbisPredeterminado')), notaPie: fv(form, 'notaPie'), secuencias,
+        };
+        const { proximoNumero, secuencias: seqs, ...resto } = data;
+        let eid = id;
+        if (!eid) eid = chk(await sb.rpc('crear_empresa', { p_nombre: nombre, p_data: { ...resto, creada: new Date().toISOString() } }));
+        else chk(await sb.from('empresas').update({ nombre, data: { ...empresaData(DB.empresas.find(x => x.id === id)), ...resto } }).eq('id', eid));
+        chk(await sb.from('empresas').update({ proximo_numero: proximoNumero }).eq('id', eid));
+        chk(await sb.from('secuencias').upsert(seqRows(eid, seqs), { onConflict: 'empresa_id,tipo' }));
+        if (id) await reloadEmpresa(eid);
+        else { await loadEmpresas(); await activarEmpresa(eid); }
+        toast('Empresa guardada', 'ok');
+        setTimeout(() => { if (!id) location.hash = '#/dashboard'; route(true); }, 0);
+      }
+    });
+};
+A.equipo = async eid => {
+  const e = DB.empresas.find(x => x.id === eid), admin = ['dueno', 'admin'].includes(e.rol);
+  let miembros, invit = [];
+  try {
+    miembros = chk(await sb.from('miembros').select('*').eq('empresa_id', eid).order('created_at'));
+    if (admin) invit = chk(await sb.from('invitaciones').select('*').eq('empresa_id', eid).order('created_at'));
+  } catch (err) { return toast(errMsg(err), 'error'); }
+  const ROL = { dueno: 'Dueño', admin: 'Administrador', usuario: 'Usuario' };
+  const yo = SESSION.user.id;
+  modal(`Equipo · ${esc(e.nombre)}`, `
+    <div class="card tbl-wrap"><table><thead><tr><th>Usuario</th><th>Rol</th><th></th></tr></thead><tbody>
+    ${miembros.map(m => `<tr><td>${esc(m.email || m.user_id)}${m.user_id === yo ? ' <span class="muted small">(tú)</span>' : ''}</td>
+      <td>${admin && m.rol !== 'dueno' && m.user_id !== yo ? `<select class="in" style="width:auto;padding:5px 8px" onchange="A.cambiarRol('${eid}','${m.user_id}',this.value)">
+        <option value="usuario" ${m.rol === 'usuario' ? 'selected' : ''}>Usuario</option><option value="admin" ${m.rol === 'admin' ? 'selected' : ''}>Administrador</option></select>` : ROL[m.rol]}</td>
+      <td class="right">${m.rol !== 'dueno' && (admin || m.user_id === yo) ? `<button type="button" class="btn sm danger" onclick="A.quitarMiembro('${eid}','${m.user_id}')">${m.user_id === yo ? 'Salir' : 'Quitar'}</button>` : ''}</td></tr>`).join('')}
+    ${invit.map(i => `<tr><td>${esc(i.email)} <span class="pill amber">Invitación pendiente</span></td><td>${ROL[i.rol]}</td>
+      <td class="right"><button type="button" class="btn sm" onclick="A.cancelarInvitacion('${eid}','${esc(i.email)}')">Cancelar</button></td></tr>`).join('')}
+    </tbody></table></div>
+    ${admin ? `<div class="section-title">Invitar a un usuario</div>
+    <div class="fgrid"><div class="field"><label>Email</label><input class="in" name="email" type="email" placeholder="empleado@correo.com"></div>
+      <div class="field"><label>Rol</label><select class="in" name="rol"><option value="usuario">Usuario (factura y cobra)</option><option value="admin">Administrador (también configura la empresa y el equipo)</option></select></div></div>
+    <p class="small muted">La persona debe crear su cuenta (o iniciar sesión) con ese mismo email y confirmarlo. Al entrar, verá esta empresa automáticamente.</p>` : ''}`,
+    admin ? { okText: 'Enviar invitación', cancelText: 'Cerrar', wide: true, onOk: async form => {
+      const email = fv(form, 'email').toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('Escribe un email válido.', 'error'); return false; }
+      if (miembros.some(m => (m.email || '').toLowerCase() === email)) { toast('Esa persona ya es miembro.', 'error'); return false; }
+      chk(await sb.from('invitaciones').upsert({ empresa_id: eid, email, rol: fv(form, 'rol') }));
+      toast('Invitación registrada', 'ok'); A.equipo(eid);
+    } } : { wide: true, cancelText: 'Cerrar' });
+};
+A.cambiarRol = async (eid, uidv, rol) => {
+  try { chk(await sb.from('miembros').update({ rol }).eq('empresa_id', eid).eq('user_id', uidv)); toast('Rol actualizado', 'ok'); }
+  catch (err) { toast(errMsg(err), 'error'); }
+};
+A.quitarMiembro = (eid, uidv) => {
+  const self = uidv === SESSION.user.id;
+  confirmar(self ? 'Salir de la empresa' : 'Quitar usuario', self ? 'Dejarás de ver esta empresa. ¿Continuar?' : 'Este usuario dejará de tener acceso a la empresa. ¿Continuar?', async () => {
+    chk(await sb.from('miembros').delete().eq('empresa_id', eid).eq('user_id', uidv));
+    if (self) { await loadEmpresas(); await activarEmpresa(DB.empresas[0]?.id || null); location.hash = '#/dashboard'; route(); }
+    else A.equipo(eid);
+  }, { okText: self ? 'Salir' : 'Quitar' });
+};
+A.cancelarInvitacion = async (eid, email) => {
+  try { chk(await sb.from('invitaciones').delete().eq('empresa_id', eid).eq('email', email)); A.equipo(eid); }
+  catch (err) { toast(errMsg(err), 'error'); }
+};
+A.logoFile = input => {
+  const file = input.files[0]; if (!file) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const max = 360, k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      logoTmp = c.toDataURL('image/png');
+      $('#logo-prev').innerHTML = `<img src="${logoTmp}" style="width:56px;height:56px;object-fit:contain;border-radius:8px;background:var(--soft)">`;
+    };
+    img.onerror = () => toast('No se pudo leer la imagen.', 'error');
+    img.src = fr.result;
+  };
+  fr.readAsDataURL(file);
+};
+A.logoClear = () => { logoTmp = ''; $('#logo-prev').innerHTML = `<div class="emp-logo" style="width:56px;height:56px">—</div>`; };
+A.borrarEmpresa = id => {
+  const e = DB.empresas.find(x => x.id === id);
+  modal('Eliminar empresa', `<div class="alert err mb">Se eliminarán <b>${esc(e.nombre)}</b> y todos sus datos para todos los usuarios: documentos, clientes, productos y equipo. No se puede deshacer. Descarga un respaldo antes.</div>
+    <div class="field"><label>Escribe el nombre de la empresa para confirmar</label><input class="in" name="conf" autocomplete="off"></div>`, {
+    okText: 'Eliminar definitivamente', danger: true, onOk: async form => {
+      if (fv(form, 'conf') !== e.nombre) { toast('El nombre no coincide.', 'error'); return false; }
+      chk(await sb.from('empresas').delete().eq('id', id));
+      await loadEmpresas();
+      if (DB.activeId === id || !emp()) await activarEmpresa(DB.empresas[0]?.id || null);
+      toast('Empresa eliminada'); setTimeout(() => route(), 0);
+    }
+  });
+};
+
+/* =========================================================
+   AJUSTES / RESPALDO
+   ========================================================= */
+function viewAjustes(v) {
+  crumbs(['Respaldo y ajustes']);
+  const e = emp(), local = localBackup();
+  v.innerHTML = `
+  <div class="page-head"><h1>Respaldo y ajustes</h1></div>
+  <div class="alert info mb">Tus datos se guardan en la nube (Supabase) y se sincronizan entre todos los usuarios de cada empresa. Aun así, descarga un respaldo de vez en cuando.</div>
+  <div class="grid g2">
+    <div class="card"><div class="card-h">Exportar respaldo</div><div class="card-b">
+      ${e ? `<p class="muted" style="margin-top:0">Descarga un archivo .json con la empresa <b>${esc(e.nombre)}</b>: clientes, productos y facturas.</p>
+      <p class="small muted">${DB.clientes.length} clientes · ${DB.productos.length} productos · ${DB.facturas.length} documentos</p>
+      <button class="btn primary" onclick="A.exportar()">${icon('down')} Descargar respaldo</button>` : '<p class="muted">No hay una empresa activa.</p>'}</div></div>
+    <div class="card"><div class="card-h">Importar respaldo</div><div class="card-b">
+      <p class="muted" style="margin-top:0">Crea en la nube las empresas de un archivo de respaldo (.json) como empresas nuevas. No modifica las existentes.</p>
+      <input type="file" accept=".json,application/json" onchange="A.importar(this)"></div></div>
+    ${local ? `<div class="card"><div class="card-h">Datos de la versión local</div><div class="card-b">
+      <p class="muted" style="margin-top:0">Este navegador tiene ${local.empresas.length} empresa(s) y ${(local.facturas || []).length} documentos de la versión sin conexión.</p>
+      <button class="btn primary" onclick="A.migrarLocal()">Subir a la nube</button></div></div>` : ''}
+    <div class="card"><div class="card-h">Empresa de ejemplo</div><div class="card-b">
+      <p class="muted" style="margin-top:0">Crea una empresa de demostración con clientes, productos y facturas para probar la app. Puedes eliminarla después en Empresas.</p>
+      <button class="btn" onclick="A.cargarEjemplo()">Crear empresa de ejemplo</button></div></div>
+  </div>`;
+}
+A.exportar = () => {
+  const e = emp();
+  const data = { version: 1, exportado: new Date().toISOString(), empresas: [e], clientes: DB.clientes, productos: DB.productos, facturas: DB.facturas.map(f => { const { _v, ...r } = f; return r; }) };
+  download(`respaldo-${e.nombre.replace(/[^\w]+/g, '_')}-${today()}.json`, JSON.stringify(data, null, 1), 'application/json');
+};
+A.importar = input => {
+  const file = input.files[0]; if (!file) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    let d;
+    try { d = JSON.parse(fr.result); } catch { return toast('El archivo no es un respaldo válido.', 'error'); }
+    if (!d || !Array.isArray(d.empresas) || !Array.isArray(d.facturas)) return toast('El archivo no es un respaldo de esta app.', 'error');
+    confirmar('Importar respaldo', `Se crearán ${d.empresas.length} empresa(s) nuevas con ${d.facturas.length} documentos. ¿Continuar?`, () => importarDatos(d), { okText: 'Importar', danger: false });
+  };
+  fr.readAsText(file);
+  input.value = '';
+};
+A.migrarLocal = () => {
+  const d = localBackup(); if (!d) return;
+  confirmar('Subir datos locales', `Se crearán en la nube ${d.empresas.length} empresa(s) con ${(d.facturas || []).length} documentos. ¿Continuar?`, async () => {
+    await importarDatos(d);
+    try { localStorage.setItem(KEY + '_migrado', localStorage.getItem(KEY)); localStorage.removeItem(KEY); } catch (e) { }
+  }, { okText: 'Subir', danger: false });
+};
+// Crea empresas nuevas a partir de un respaldo (ids nuevos, referencias re-mapeadas).
+async function importarDatos(src) {
+  busy(true, 'Importando…');
+  let ultima = null;
+  try {
+    for (const e of src.empresas) {
+      busy(true, `Importando ${e.nombre}…`);
+      const { id: oldId, proximoNumero, proximoNC, secuencias, rol, ...resto } = e;
+      const eid = chk(await sb.rpc('crear_empresa', { p_nombre: e.nombre, p_data: resto }));
+      ultima = eid;
+      chk(await sb.from('empresas').update({ proximo_numero: num(proximoNumero) || 1, proximo_nc: num(proximoNC) || 1 }).eq('id', eid));
+      chk(await sb.from('secuencias').upsert(seqRows(eid, secuencias || {}), { onConflict: 'empresa_id,tipo' }));
+      const mapC = {}, mapP = {}, mapF = {};
+      const cs = (src.clientes || []).filter(c => !c.empresaId || c.empresaId === oldId);
+      const ps = (src.productos || []).filter(p => !p.empresaId || p.empresaId === oldId);
+      const fs = (src.facturas || []).filter(f => !f.empresaId || f.empresaId === oldId);
+      cs.forEach(c => mapC[c.id] = uid()); ps.forEach(p => mapP[p.id] = uid()); fs.forEach(f => mapF[f.id] = uid());
+      const insert = async (table, rows) => { for (let i = 0; i < rows.length; i += 300) chk(await sb.from(table).insert(rows.slice(i, i + 300))); };
+      await insert('clientes', cs.map(c => ({ id: mapC[c.id], empresa_id: eid, data: stripIds(c) })));
+      await insert('productos', ps.map(p => ({ id: mapP[p.id], empresa_id: eid, data: stripIds(p) })));
+      await insert('facturas', fs.map(f => {
+        const { _v, ...rest } = stripIds(f);
+        const data = { ...rest, clienteId: mapC[f.clienteId] || '', facturaAfectadaId: mapF[f.facturaAfectadaId] || '', items: (f.items || []).map(it => ({ ...it, productoId: mapP[it.productoId] || '' })) };
+        return { id: mapF[f.id], empresa_id: eid, numero: f.numero, tipo: f.tipo, ncf: f.ncf || null, fecha: f.fecha, data };
+      }));
+    }
+    await loadEmpresas();
+    if (ultima) await activarEmpresa(ultima);
+    toast('Importación completada', 'ok');
+    location.hash = '#/dashboard'; route();
+  } catch (err) {
+    console.error(err); toast('Error al importar: ' + errMsg(err), 'error');
+    try { await loadEmpresas(); if (!emp()) await activarEmpresa(DB.empresas[0]?.id || null); } catch (e) { }
+    route();
+  } finally { busy(false); }
+}
+
+/* =========================================================
+   IMPRESIÓN
+   ========================================================= */
+A.imprimir = (id, ticket) => {
+  const f = getF(id);
+  const pa = $('#print-area');
+  pa.className = ticket ? 'ticket' : 'carta';
+  pa.innerHTML = ticket ? ticketHTML(f) : cartaHTML(f);
+  $('#page-style').textContent = ticket ? '@page{size:80mm auto;margin:3mm}' : '@page{size:letter;margin:12mm}';
+  const prev = document.title;
+  document.title = `${f.numero}${f.ncf ? ' ' + f.ncf : ''}`;
+  const imgs = [...pa.querySelectorAll('img')].filter(i => !i.complete);
+  Promise.all(imgs.map(i => new Promise(r => { i.onload = i.onerror = r; }))).then(() => {
+    setTimeout(() => { window.print(); document.title = prev; }, 60);
+  });
+};
+function tituloDoc(f) { return f.tipo === TIPO_NONE ? 'FACTURA' : NCF_TIPOS[f.tipo].titulo; }
+function cartaHTML(f) {
+  const e = DB.empresas.find(x => x.id === f.empresaId), t = calc(f), c = f.cliente || {};
+  const afect = f.facturaAfectadaId ? getF(f.facturaAfectadaId) : null;
+  const sal = saldo(f);
+  return `<div class="p-doc">
+  <div class="p-head">
+    <div class="p-emp">${e.logo ? `<img src="${e.logo}" alt="">` : ''}<div>
+      <h2>${esc(e.nombre)}</h2>
+      <div>${e.razonSocial && e.razonSocial !== e.nombre ? esc(e.razonSocial) + '<br>' : ''}RNC: ${esc(fmtId(e.rnc))}<br>
+      ${e.direccion ? esc(e.direccion) + '<br>' : ''}${[e.telefono, e.email, e.web].filter(Boolean).map(esc).join(' · ')}</div></div></div>
+    <div class="p-title"><h1>${tituloDoc(f)}</h1><table>
+      <tr><td>Número:</td><td><b>${esc(f.numero)}</b></td></tr>
+      ${f.ncf ? `<tr><td>NCF:</td><td><b>${esc(f.ncf)}</b></td></tr><tr><td>Válido hasta:</td><td>${fdate(f.ncfVence)}</td></tr>` : ''}
+      ${afect ? `<tr><td>NCF modificado:</td><td><b>${esc(afect.ncf)}</b></td></tr>` : ''}
+      <tr><td>Fecha:</td><td>${fdate(f.fecha)}</td></tr>
+      ${f.tipo !== 'B04' ? `<tr><td>Condición:</td><td>${f.condicion === 'credito' ? `Crédito ${f.diasCredito} días` : 'Contado'}</td></tr>` : ''}
+      ${f.vencimiento ? `<tr><td>Vence:</td><td>${fdate(f.vencimiento)}</td></tr>` : ''}
+    </table></div>
+  </div>
+  ${f.estado === 'anulada' ? `<div style="border:2px solid #b91c1c;color:#b91c1c;text-align:center;font-weight:700;padding:6px;margin-top:10px">DOCUMENTO ANULADO</div>` : ''}
+  <div class="p-box">
+    <div><b class="l">Cliente</b><b>${esc(c.nombre || 'Consumidor Final')}</b><br>
+      ${c.rnc ? `RNC/Cédula: ${esc(fmtId(c.rnc))}<br>` : ''}${c.direccion ? esc(c.direccion) + '<br>' : ''}${[c.telefono, c.email].filter(Boolean).map(esc).join(' · ')}</div>
+  </div>
+  <table class="p-items"><thead><tr><th style="text-align:left">Descripción</th><th style="text-align:right">Cant.</th><th style="text-align:right">Precio</th>${t.descuento ? '<th style="text-align:right">Desc.</th>' : ''}<th style="text-align:right">ITBIS</th><th style="text-align:right">Valor</th></tr></thead><tbody>
+  ${f.items.map(it => { const b = r2(num(it.cantidad) * num(it.precio)), base = r2(b - b * num(it.descuento) / 100);
+    return `<tr><td>${esc(it.descripcion)}${it.sku ? ` <span style="color:#666">(${esc(it.sku)})</span>` : ''}</td><td style="text-align:right">${num(it.cantidad)}</td><td style="text-align:right">${money(it.precio)}</td>
+    ${t.descuento ? `<td style="text-align:right">${num(it.descuento) ? num(it.descuento) + '%' : ''}</td>` : ''}<td style="text-align:right">${money(base * num(it.itbis) / 100)}</td><td style="text-align:right">${money(base)}</td></tr>`; }).join('')}
+  </tbody></table>
+  <div class="p-tot">
+    <div><span>Subtotal</span><span>${money(t.bruto)}</span></div>
+    ${t.descuento ? `<div><span>Descuento</span><span>-${money(t.descuento)}</span></div>` : ''}
+    ${t.exento && t.gravado ? `<div><span>Gravado</span><span>${money(t.gravado)}</span></div><div><span>Exento</span><span>${money(t.exento)}</span></div>` : ''}
+    <div><span>ITBIS</span><span>${money(t.itbis)}</span></div>
+    ${t.propina ? `<div><span>Propina legal 10%</span><span>${money(t.propina)}</span></div>` : ''}
+    <div class="t"><span>TOTAL</span><span>${money(t.total)}</span></div>
+    ${f.tipo !== 'B04' && f.estado !== 'anulada' && f.condicion === 'credito' ? `<div><span>Pagado</span><span>${money(pagado(f) + totalNotas(f))}</span></div><div><b>Balance</b><b>${money(sal)}</b></div>` : ''}
+  </div>
+  ${f.notas ? `<div class="p-notes">${esc(f.notas)}</div>` : ''}
+  <div class="p-sign"><div>Despachado por</div><div>Recibido conforme</div></div>
+  <div class="p-foot">${esc(e.nombre)} · RNC ${esc(fmtId(e.rnc))}</div>
+  </div>`;
+}
+function ticketHTML(f) {
+  const e = DB.empresas.find(x => x.id === f.empresaId), t = calc(f), c = f.cliente || {};
+  const afect = f.facturaAfectadaId ? getF(f.facturaAfectadaId) : null;
+  return `<div class="p-doc">
+  <div class="tk">${e.logo ? `<img src="${e.logo}" alt=""><br>` : ''}<h2>${esc(e.nombre)}</h2>
+    RNC: ${esc(fmtId(e.rnc))}<br>${e.direccion ? esc(e.direccion) + '<br>' : ''}${e.telefono ? esc(e.telefono) : ''}</div>
+  <div class="tk-line"></div>
+  <div class="tk"><b>${tituloDoc(f)}</b></div>
+  ${f.estado === 'anulada' ? '<div class="tk"><b>*** ANULADO ***</b></div>' : ''}
+  <div class="tk-l">
+    ${f.ncf ? `NCF: <b>${esc(f.ncf)}</b><br>Válido hasta: ${fdate(f.ncfVence)}<br>` : ''}
+    ${afect ? `NCF modificado: ${esc(afect.ncf)}<br>` : ''}
+    No.: ${esc(f.numero)} &nbsp; Fecha: ${fdate(f.fecha)}<br>
+    Cliente: ${esc(c.nombre || 'Consumidor Final')}<br>${c.rnc ? `RNC/Céd.: ${esc(fmtId(c.rnc))}<br>` : ''}
+  </div>
+  <div class="tk-line"></div>
+  ${f.items.map(it => { const b = r2(num(it.cantidad) * num(it.precio)), base = r2(b - b * num(it.descuento) / 100);
+    return `<div class="tk-l">${esc(it.descripcion)}</div><div class="tk-row"><span>${num(it.cantidad)} x ${money(it.precio)}${num(it.itbis) ? '' : ' E'}</span><span>${money(base)}</span></div>`; }).join('')}
+  <div class="tk-line"></div>
+  <div class="tk-row"><span>Subtotal</span><span>${money(t.base)}</span></div>
+  <div class="tk-row"><span>ITBIS</span><span>${money(t.itbis)}</span></div>
+  ${t.propina ? `<div class="tk-row"><span>Propina 10%</span><span>${money(t.propina)}</span></div>` : ''}
+  <div class="tk-row" style="font-weight:700;font-size:13px"><span>TOTAL</span><span>${money(t.total)}</span></div>
+  ${(f.pagos || []).map(p => `<div class="tk-row"><span>${esc(p.metodo)}</span><span>${money(p.monto)}</span></div>`).join('')}
+  <div class="tk-line"></div>
+  ${f.notas ? `<div class="tk" style="white-space:pre-wrap">${esc(f.notas)}</div>` : ''}
+  <div class="tk">¡Gracias por su compra!</div></div>`;
+}
+
+/* =========================================================
+   DATOS DE EJEMPLO
+   ========================================================= */
+A.cargarEjemplo = () => {
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const pick = a => a[Math.floor(rnd() * a.length)];
+  const y = new Date().getFullYear();
+  const e = {
+    id: uid(), creada: new Date().toISOString(), nombre: 'Taller Demo SRL', razonSocial: 'Taller Demo, S.R.L.', rnc: '101000001',
+    telefono: '(809) 555-0100', email: 'info@tallerdemo.do', web: '', direccion: 'Av. Ejemplo #10, Santiago', logo: '',
+    prefijo: 'INV', proximoNumero: 1, proximoNC: 1, tipoPredeterminado: 'B02', condicionPredeterminada: 'contado', itbisPredeterminado: 18,
+    notaPie: 'Gracias por preferirnos. Garantía de 30 días en mano de obra.',
+    secuencias: {
+      B01: { activo: true, desde: 1, hasta: 500, actual: 0, vence: `${y + 1}-12-31` },
+      B02: { activo: true, desde: 1, hasta: 2000, actual: 0, vence: `${y + 1}-12-31` },
+      B14: { activo: false, desde: 1, hasta: '', actual: 0, vence: `${y + 1}-12-31` },
+      B15: { activo: true, desde: 1, hasta: 50, actual: 0, vence: `${y + 1}-12-31` },
+      B04: { activo: true, desde: 1, hasta: 100, actual: 0, vence: `${y + 1}-12-31` },
+    },
+  };
+  const cls = [
+    ['Constructora Ejemplo SRL', '130000011', '(809) 555-0111', 'Calle 1 #5, Santiago'],
+    ['Inversiones Demo SAS', '131000022', '(809) 555-0122', 'Av. Principal 22, Santo Domingo'],
+    ['Juan Pérez (demo)', '00100000001', '(829) 555-0133', 'Los Jardines, Santiago'],
+    ['Ferretería Modelo SRL', '132000033', '(809) 555-0144', 'Carretera Duarte km 5'],
+    ['Ayuntamiento Demo', '401000044', '(809) 555-0155', 'Parque Central'],
+  ].map(([nombre, rnc, telefono, direccion]) => ({ id: uid(), empresaId: e.id, creado: new Date().toISOString(), nombre, rnc, telefono, email: '', direccion, notas: '' }));
+  const prods = [
+    ['00976', 'Aceite de motor 1/4', 'bien', 500, 18], ['00502', 'Filtro de aire', 'bien', 1000, 18], ['087295', 'Bujía NGK', 'bien', 300, 18],
+    ['01015', 'Mano de obra', 'servicio', 550, 18], ['01426', 'Limpieza de tanque', 'servicio', 500, 18], ['02001', 'Diagnóstico general', 'servicio', 1500, 18],
+    ['03003', 'Manguera de gasolina', 'bien', 150, 18], ['04004', 'Carburador completo', 'bien', 3200, 18],
+  ].map(([sku, descripcion, tipo, precio, itbis]) => ({ id: uid(), empresaId: e.id, sku, descripcion, tipo, precio, itbis }));
+  const fechas = []; for (let i = 0; i < 46; i++) fechas.push(addDays(today(), -Math.floor(rnd() * 330)));
+  fechas.sort();
+  const nuevas = [];
+  fechas.forEach((fecha, i) => {
+    const cli = rnd() < 0.4 ? null : pick(cls);
+    const tipo = !cli ? 'B02' : cli.rnc.startsWith('4') ? 'B15' : 'B01';
+    const n = 1 + Math.floor(rnd() * 3);
+    const items = []; for (let k = 0; k < n; k++) { const p = pick(prods); items.push({ productoId: p.id, sku: p.sku, descripcion: p.descripcion, cantidad: 1 + Math.floor(rnd() * 3), precio: p.precio, descuento: 0, itbis: p.itbis }); }
+    const credito = !!cli && rnd() < 0.5;
+    const s = e.secuencias[tipo]; s.actual++;
+    const f = {
+      id: uid(), empresaId: e.id, creada: new Date(fecha + 'T10:00:00').toISOString(), estado: 'emitida', tipo,
+      ncf: tipo + pad(s.actual, 8), ncfVence: s.vence, numero: `INV-${pad(e.proximoNumero++)}`,
+      clienteId: cli ? cli.id : '', cliente: cli ? { nombre: cli.nombre, rnc: cli.rnc, direccion: cli.direccion, telefono: cli.telefono, email: '' } : { nombre: 'Consumidor Final' },
+      fecha, condicion: credito ? 'credito' : 'contado', diasCredito: credito ? 30 : 0, vencimiento: credito ? addDays(fecha, 30) : '',
+      items, propina: false, notas: e.notaPie, facturaAfectadaId: '', pagos: [],
+    };
+    const tot = calc(f).total;
+    const edad = daysBetween(fecha, today());
+    if (!credito) f.pagos.push({ id: uid(), fecha, metodo: pick(['Efectivo', 'Tarjeta', 'Efectivo', 'Transferencia']), monto: tot, referencia: '' });
+    else if (edad > 40 && rnd() < 0.8) f.pagos.push({ id: uid(), fecha: addDays(fecha, 20 + Math.floor(rnd() * 15)), metodo: 'Transferencia', monto: tot, referencia: '' });
+    else if (rnd() < 0.3) f.pagos.push({ id: uid(), fecha: addDays(fecha, 5), metodo: 'Cheque', monto: r2(tot / 2), referencia: '' });
+    if (i === 12) { f.estado = 'anulada'; f.pagos = []; f.anulada = { fecha, motivo: '04' }; }
+    nuevas.push(f);
+  });
+  return importarDatos({ empresas: [e], clientes: cls, productos: prods, facturas: nuevas });
+};
+
+/* ---------- Start ---------- */
+async function boot(session) {
+  SESSION = session;
+  BOOTING = true; route();
+  try {
+    await sb.rpc('aceptar_invitaciones');
+    await loadEmpresas();
+    let id = null;
+    try { id = localStorage.getItem(activeKey()); } catch (e) { }
+    if (!DB.empresas.some(e => e.id === id)) id = DB.empresas[0]?.id || null;
+    await activarEmpresa(id);
+  } catch (err) {
+    console.error(err);
+    BOOTING = false;
+    document.body.classList.add('auth-mode');
+    $('#view').innerHTML = `<div class="auth-wrap"><div class="card auth-card"><div class="alert err">${esc(errMsg(err))}</div>
+      <div style="display:flex;gap:8px;margin-top:14px"><button class="btn" onclick="location.reload()">Reintentar</button><button class="btn" onclick="A.logout()">Cerrar sesión</button></div></div></div>`;
+    return;
+  }
+  BOOTING = false; route();
+}
+let bootedFor = null;
+sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') setTimeout(pedirNuevaPassword, 300);
+  if (event === 'INITIAL_SESSION' && !session) { BOOTING = false; route(); return; }
+  const prev = SESSION?.user?.id, next = session?.user?.id;
+  if (next && next !== bootedFor) { bootedFor = next; setTimeout(() => boot(session), 0); return; }
+  if (!next && prev) {
+    SESSION = null; DB = blankDB(); bootedFor = null;
+    if (channel) { sb.removeChannel(channel); channel = null; }
+    authMode = 'login'; route(); return;
+  }
+  if (session) SESSION = session;
+});
+</script>
+</body>
+</html>
