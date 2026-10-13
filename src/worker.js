@@ -3,7 +3,7 @@
 //   /api/ecf/*    facturación electrónica (firma y envío de e-CF a la DGII)
 import {
   construirECF, construirRFCE, calcularECF, signTree, importPrivateKey, obtenerToken, enviarECF, enviarRFCE,
-  consultarResultado, urlTimbre, fechaHoraRD, b64, unb64, LIMITE_RFCE, AMBIENTES,
+  consultarResultado, urlTimbre, fechaHoraRD, b64, unb64, LIMITE_RFCE, AMBIENTES, parseXml,
 } from './ecf.js';
 
 const SB_URL = 'https://gwvqpnmwqvqrmsbpwmhj.supabase.co';
@@ -37,6 +37,7 @@ export default {
         if (ruta === 'certificado') return json(await guardarCertificado(env, jwt, body));
         if (ruta === 'emitir') return json(await emitirECF(env, jwt, body));
         if (ruta === 'consultar') return json(await consultarECF(env, jwt, body));
+        if (ruta === 'firmar') return json(await firmarXmlLibre(env, jwt, body));
         return json({ ok: false, error: 'Ruta no encontrada' }, 404);
       } catch (err) {
         return json({ ok: false, error: String(err && err.message || err) }, 400);
@@ -191,6 +192,18 @@ async function emitirECF(env, jwt, { facturaId }) {
   }
   const ecf = await guardarEstado(jwt, facturaId, res);
   return { ok: true, ecf };
+}
+
+// Firma con el certificado de la empresa un XML cualquiera (p. ej. los que pide la DGII en la postulación).
+async function firmarXmlLibre(env, jwt, { empresaId, xml }) {
+  if (!empresaId || !xml) throw new Error('Falta la empresa o el XML.');
+  if (xml.length > 2e6) throw new Error('El XML es demasiado grande.');
+  const s = await firmante(env, jwt, empresaId);
+  const root = parseXml(xml);
+  if (!root) throw new Error('El archivo no es un XML válido.');
+  if ((root.c || []).some(n => /(^|:)Signature$/.test(n.n || ''))) throw new Error('Este XML ya está firmado.');
+  const { xml: firmado } = await signTree(root, s.privateKey, s.cert);
+  return { ok: true, xml: firmado };
 }
 
 async function consultarECF(env, jwt, { facturaId }) {

@@ -1113,6 +1113,18 @@ A.descargarXML = id => {
   if (x.xmlRfce) setTimeout(() => download(`${rnc}${f.ncf}-RFCE.xml`, x.xmlRfce, 'text/xml'), 400);
 };
 
+A.firmarXML = async eid => {
+  const file = $('#xml-a-firmar')?.files[0];
+  if (!file) return toast('Elige el archivo XML que te dio la DGII.', 'error');
+  busy(true, 'Firmando XML…');
+  try {
+    const { xml } = await apiECF('firmar', { empresaId: eid, xml: await file.text() });
+    download(file.name, xml, 'text/xml');
+    toast('XML firmado y descargado. Súbelo en la DGII.', 'ok');
+  } catch (err) { toast(errMsg(err), 'error'); }
+  finally { busy(false); }
+};
+
 // Configuración por empresa: ambiente y certificado digital (.p12/.pfx)
 A.configECF = async eid => {
   const e = DB.empresas.find(x => x.id === eid);
@@ -1133,6 +1145,10 @@ A.configECF = async eid => {
       <div class="field"><label>Archivo .p12 / .pfx ${cfg?.cert_info?.cn ? '(para reemplazar)' : ''}</label><input type="file" name="p12" accept=".p12,.pfx,application/x-pkcs12"></div>
       <div class="field"><label>Contraseña del certificado</label><input class="in" type="password" name="pass" autocomplete="off"><span class="hint">Se usa solo en este navegador para abrir el archivo; no se guarda.</span></div>
     </div>
+    ${cfg?.cert_info?.cn ? `<div class="section-title">Firmar un XML de la DGII</div>
+    <p class="small muted" style="margin:0 0 8px">Para los archivos que la DGII te pide firmar (por ejemplo, en la postulación). Se firma con el certificado de esta empresa y se descarga con el mismo nombre.</p>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="file" id="xml-a-firmar" accept=".xml,text/xml">
+      <button type="button" class="btn" onclick="A.firmarXML('${eid}')">${icon('edit')} Firmar y descargar</button></div>` : ''}
     <div class="section-title">3. Secuencias e-NCF</div>
     <p class="small" style="margin:0">${seqE.length ? 'Activas: ' + seqE.map(t => `<span class="tag">${t}</span>`).join(' ') : 'No hay secuencias e-NCF activas.'} Configúralas en <b>Empresas → Editar → Secuencias</b> (E31, E32, E34, E44, E45).</p>`, {
     wide: true, okText: 'Guardar', onOk: async form => {

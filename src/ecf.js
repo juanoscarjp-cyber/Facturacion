@@ -171,6 +171,76 @@ export async function signTree(root, privateKey, certB64) {
 }
 
 /* ---------------------------------------------------------------------------
+   Verificación de firmas de XML recibidos (e-CF de proveedores, ACECF, semillas)
+   --------------------------------------------------------------------------- */
+// Lectura mínima de DER/ASN.1 para obtener la clave pública (SPKI) y el SN (OID 2.5.4.5) de un certificado X.509.
+function derLeer(buf, pos) {
+  let len = buf[pos + 1], p = pos + 2;
+  if (len & 0x80) { const n = len & 0x7f; len = 0; for (let i = 0; i < n; i++) len = len * 256 + buf[p++]; }
+  return { tag: buf[pos], hdr: pos, start: p, end: p + len };
+}
+function derHijos(buf, nodo) { const out = []; for (let p = nodo.start; p < nodo.end;) { const c = derLeer(buf, p); out.push(c); p = c.end; } return out; }
+export function datosCertificado(der) {
+  const [tbs] = derHijos(der, derLeer(der, 0));
+  let f = derHijos(der, tbs);
+  if (f[0].tag === 0xa0) f = f.slice(1); // versión explícita
+  const [, , , , subject, spki] = f;
+  let sn = '';
+  for (const rdn of derHijos(der, subject)) for (const atv of derHijos(der, rdn)) {
+    const [oid, val] = derHijos(der, atv);
+    if (oid.end - oid.start === 3 && der[oid.start] === 0x55 && der[oid.start + 1] === 4 && der[oid.start + 2] === 5) sn = new TextDecoder().decode(der.slice(val.start, val.end));
+  }
+  return { spki: der.slice(spki.hdr, spki.end), sn };
+}
+const nsDe = node => { const o = {}; for (const [k, v] of node.a || []) { if (k === 'xmlns') o[''] = v; else if (k.startsWith('xmlns:')) o[k.slice(6)] = v; } return o; };
+const local = n => (n || '').replace(/^.*:/, '');
+const hijo = (node, nombre) => (node.c || []).find(x => local(x.n) === nombre);
+const buscar = (node, nombre) => (local(node.n) === nombre ? node : (node.c || []).map(c => (c.n ? buscar(c, nombre) : null)).find(Boolean));
+// Texto de la primera aparición de un elemento (ignora prefijos de namespace)
+export const texto = (node, nombre) => { const el = node && buscar(node, nombre); return el ? (el.c || []).map(x => x.t || '').join('') : ''; };
+
+// Verifica una firma XMLDSig enveloped (Reference URI="", C14N inclusivo, RSA-SHA256).
+export async function verificarFirma(xmlStr) {
+  let root;
+  try { root = parseXml(xmlStr); } catch { root = null; }
+  if (!root) return { ok: false, motivo: 'XML mal formado' };
+  const i = (root.c || []).findIndex(n => local(n.n) === 'Signature');
+  if (i < 0) return { ok: false, motivo: 'El XML no está firmado', root };
+  const sig = root.c[i], si = hijo(sig, 'SignedInfo');
+  try {
+    const digestEsperado = texto(si, 'DigestValue').replace(/\s/g, '');
+    const sinFirma = { ...root, c: root.c.filter((_, j) => j !== i) };
+    const digest = b64(await crypto.subtle.digest('SHA-256', enc.encode(c14n(sinFirma))));
+    if (digest !== digestEsperado) return { ok: false, motivo: 'El contenido no coincide con la firma (DigestValue)', root };
+    const canon = c14n(si, { ...nsDe(root), ...nsDe(sig) }, {});
+    const valor = texto(sig, 'SignatureValue').replace(/\s/g, '');
+    const certB64 = texto(sig, 'X509Certificate').replace(/\s/g, '');
+    const { spki, sn } = datosCertificado(unb64(certB64));
+    const key = await crypto.subtle.importKey('spki', spki, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+    const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, unb64(valor), enc.encode(canon));
+    return { ok, motivo: ok ? '' : 'Firma digital inválida', sn, root, signatureValue: valor };
+  } catch (e) {
+    return { ok: false, motivo: 'No se pudo verificar la firma: ' + (e.message || e), root };
+  }
+}
+
+// Acuse de recibo (ARECF) que responde el receptor
+export function construirARECF({ rncEmisor, rncComprador, encf, recibido, motivo, fechaHora }) {
+  const [root] = buildFromSkeleton(['ARECF!', [['DetalleAcusedeRecibo!', ['Version!', 'RNCEmisor!', 'RNCComprador!', 'eNCF!', 'Estado!', 'CodigoMotivoNoRecibido', 'FechaHoraAcuseRecibo!']]]], {
+    ARECF: { DetalleAcusedeRecibo: { Version: '1.0', RNCEmisor: rncEmisor, RNCComprador: rncComprador, eNCF: encf, Estado: recibido ? 0 : 1, CodigoMotivoNoRecibido: recibido ? undefined : motivo, FechaHoraAcuseRecibo: fechaHora } },
+  });
+  return root;
+}
+
+// Aprobación comercial (ACECF) que emite el comprador sobre un e-CF recibido
+export function construirACECF({ rncEmisor, encf, fechaEmision, montoTotal, rncComprador, aprobado, motivo, fechaHora }) {
+  const [root] = buildFromSkeleton(['ACECF!', [['DetalleAprobacionComercial!', ['Version!', 'RNCEmisor!', 'eNCF!', 'FechaEmision!', 'MontoTotal!', 'RNCComprador!', 'Estado!', 'DetalleMotivoRechazo', 'FechaHoraAprobacionComercial!']]]], {
+    ACECF: { DetalleAprobacionComercial: { Version: '1.0', RNCEmisor: rncEmisor, eNCF: encf, FechaEmision: fechaEmision, MontoTotal: montoTotal, RNCComprador: rncComprador, Estado: aprobado ? 1 : 2, DetalleMotivoRechazo: aprobado ? undefined : txt(motivo, 250), FechaHoraAprobacionComercial: fechaHora } },
+  });
+  return root;
+}
+
+/* ---------------------------------------------------------------------------
    Formatos
    --------------------------------------------------------------------------- */
 const r2 = n => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
