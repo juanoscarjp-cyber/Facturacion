@@ -525,6 +525,15 @@ export async function enviarRFCE(ambiente, token, xml, fileName) {
   return d;
 }
 
+// Aprobación comercial (ACECF) hacia la DGII
+export const ESQUEMA_ACECF = ['ACECF!', [['DetalleAprobacionComercial!', ['Version!', 'RNCEmisor!', 'eNCF!', 'FechaEmision!', 'MontoTotal!', 'RNCComprador!', 'Estado!', 'DetalleMotivoRechazo', 'FechaHoraAprobacionComercial!']]]];
+export async function enviarACECF(ambiente, token, xml, fileName) {
+  const r = await fetch(AMBIENTES[ambiente].ecf + '/aprobacioncomercial/api/aprobacioncomercial', multipart(xml, fileName, { 'user-agent': UA, accept: 'application/json', authorization: 'Bearer ' + token }));
+  const d = await leerRespuesta(r);
+  if (!r.ok && !d.estado) throw new Error('DGII aprobación comercial: ' + ([].concat(d.mensaje || []).join(' · ') || d.message || d.raw || `HTTP ${r.status}`));
+  return d;
+}
+
 export async function consultarResultado(ambiente, token, trackId) {
   const r = await fetch(AMBIENTES[ambiente].ecf + '/consultaresultado/api/consultas/estado?trackid=' + encodeURIComponent(trackId), {
     headers: { 'user-agent': UA, accept: 'application/json', authorization: 'Bearer ' + token },

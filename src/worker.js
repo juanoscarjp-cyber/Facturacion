@@ -3,7 +3,7 @@
 //   /api/ecf/*    facturación electrónica (firma y envío de e-CF a la DGII)
 import {
   construirECF, construirRFCE, calcularECF, signTree, importPrivateKey, obtenerToken, enviarECF, enviarRFCE,
-  consultarResultado, urlTimbre, fechaHoraRD, b64, unb64, LIMITE_RFCE, AMBIENTES, parseXml, construirDesdeFila, ESQUEMAS,
+  consultarResultado, urlTimbre, fechaHoraRD, b64, unb64, LIMITE_RFCE, AMBIENTES, parseXml, construirDesdeFila, ESQUEMAS, ESQUEMA_ACECF, enviarACECF,
 } from './ecf.js';
 
 const SB_URL = 'https://gwvqpnmwqvqrmsbpwmhj.supabase.co';
@@ -203,6 +203,15 @@ async function procesarSet(env, jwt, { empresaId, ambiente = 'certecf', accion, 
   const token = await obtenerToken(ambiente, s.privateKey, s.cert, 'empresa:' + empresaId);
   const resumen = q => ({ trackId: q.trackId, codigo: q.codigo, estado: q.estado || ESTADOS[q.codigo], mensajes: mensajes(q), secuenciaUtilizada: q.secuenciaUtilizada });
   if (accion === 'consultar') return { ok: true, ...resumen(await consultarResultado(ambiente, token, trackId)) };
+  if (accion === 'acecf') {
+    // El XSD exige el monto con exactamente 2 decimales; Excel lo entrega como número (18283 → 18283.00).
+    const f = { ...fila, MontoTotal: Number(String(fila.MontoTotal).replace(/,/g, '')).toFixed(2), FechaHoraAprobacionComercial: fila.FechaHoraAprobacionComercial || fechaHoraRD() };
+    if (!f.eNCF || !f.RNCComprador) throw new Error('Fila de aprobación comercial incompleta.');
+    const { xml } = await signTree(construirDesdeFila(ESQUEMA_ACECF, f), s.privateKey, s.cert);
+    const d = await enviarACECF(ambiente, token, xml, String(f.RNCComprador).trim() + String(f.eNCF).trim() + '.xml');
+    const msgs = [].concat(d.mensaje || []).filter(Boolean);
+    return { ok: true, xml, codigo: d.codigo, estado: d.estado || '', mensajes: msgs };
+  }
   if (!fila || !fila.ENCF || !fila.RNCEmisor) throw new Error('Fila del set incompleta (falta ENCF o RNCEmisor).');
   const encf = String(fila.ENCF).trim(), fileName = String(fila.RNCEmisor).trim() + encf + '.xml';
   if (accion === 'rfce') {

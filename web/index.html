@@ -1244,8 +1244,49 @@ function viewCertificacion(v) {
         ${r.xml ? `<button class="icon-btn" title="Descargar XML firmado" onclick="A.certXML('${esc(f.ENCF)}')">${icon('down')}</button>` : ''}
       </td></tr>`;
   }).join('')}
-  </tbody></table></div></div>` : `<div class="card"><div class="empty">Carga el archivo del set de pruebas para comenzar.</div></div>`}`;
+  </tbody></table></div></div>` : `<div class="card"><div class="empty">Carga el archivo del set de pruebas para comenzar.</div></div>`}
+  ${(C.ACECF || []).length ? (() => {
+    const okA = C.ACECF.filter(a => certOkA(C.resA[a.eNCF])).length;
+    return `<div class="page-head mt" style="margin-top:28px"><h1 style="font-size:20px">Aprobaciones comerciales (Paso 3)</h1>
+      <button class="btn primary" onclick="A.certTodoA()">${icon('receipt')} Enviar pendientes</button></div>
+    <div class="muted small mb">Archivo: ${esc(C.archivoA || '')} · ${okA}/${C.ACECF.length} aceptadas por la DGII</div>
+    <div class="card"><div class="tbl-wrap"><table><thead><tr><th>e-NCF</th><th>RNC emisor</th><th class="right">Monto</th><th>Decisión</th><th>Estado DGII</th><th>Detalle</th><th></th></tr></thead><tbody>
+    ${C.ACECF.map(a => { const r = C.resA[a.eNCF] || {}; return `<tr><td class="mono">${esc(a.eNCF)}</td><td class="mono small">${esc(a.RNCEmisor)}</td><td class="right">${money(num(a.MontoTotal))}</td>
+      <td>${String(a.Estado) === '1' ? 'Aprobada' : 'Rechazada'}</td>
+      <td>${r.estado ? `<span class="pill ${certOkA(r) ? 'green' : 'red'}">${esc(r.estado)}</span>` : r.error ? '<span class="pill red">Error</span>' : '<span class="pill gray">Pendiente</span>'}</td>
+      <td class="small" style="max-width:380px">${r.error ? `<span style="color:var(--red)">${esc(r.error)}</span>` : (r.mensajes || []).map(esc).join('<br>')}</td>
+      <td class="right nowrap">${!certOkA(r) ? `<button class="btn sm" onclick="A.certFilaA('${esc(a.eNCF)}')">Enviar</button>` : ''}
+        ${r.xml ? `<button class="icon-btn" title="Descargar XML firmado" onclick="A.certXMLA('${esc(a.eNCF)}')">${icon('down')}</button>` : ''}</td></tr>`; }).join('')}
+    </tbody></table></div></div>`;
+  })() : ''}`;
 }
+const certOkA = r => r && (String(r.codigo) === '1' || /aprobada|aceptad/i.test(r.estado || ''));
+async function certProcesarA(a) {
+  const C = certCargar();
+  C.resA = C.resA || {};
+  try {
+    const r = await apiECF('set', { empresaId: DB.activeId, ambiente: C.ambiente, accion: 'acecf', fila: a });
+    C.resA[a.eNCF] = { xml: r.xml, codigo: r.codigo, estado: r.estado, mensajes: r.mensajes };
+  } catch (err) { C.resA[a.eNCF] = { ...(C.resA[a.eNCF] || {}), error: errMsg(err) }; }
+  certGuardar();
+}
+A.certFilaA = async encf => {
+  busy(true, 'Enviando aprobación ' + encf + '…');
+  try { await certProcesarA(certCargar().ACECF.find(a => a.eNCF === encf)); } finally { busy(false); route(true); }
+};
+A.certTodoA = async () => {
+  const C = certCargar();
+  const pend = C.ACECF.filter(a => !certOkA((C.resA || {})[a.eNCF]));
+  if (!pend.length) return toast('No hay aprobaciones pendientes.');
+  for (let i = 0; i < pend.length; i++) { busy(true, `Enviando aprobación ${i + 1} de ${pend.length}…`); await certProcesarA(pend[i]); }
+  busy(false); route(true);
+  const fallos = pend.filter(a => !certOkA(C.resA[a.eNCF])).length;
+  toast(fallos ? `${fallos} aprobaciones con error o rechazo. Revisa el detalle.` : 'Todas las aprobaciones fueron aceptadas.', fallos ? 'error' : 'ok');
+};
+A.certXMLA = encf => {
+  const C = certCargar(), a = C.ACECF.find(x => x.eNCF === encf);
+  download(`${a.RNCComprador}${encf}.xml`, C.resA[encf].xml, 'text/xml');
+};
 A.certArchivo = async input => {
   const file = input.files[0]; if (!file) return;
   busy(true, 'Leyendo el set de pruebas…');
@@ -1260,9 +1301,24 @@ A.certArchivo = async input => {
       }).filter(o => o.ENCF);
     };
     const C = certCargar();
+    // Set de aprobaciones comerciales (Paso 3): hoja con la columna FechaHoraAprobacionComercial
+    const hojaAprob = wb.SheetNames.find(n => {
+      const ws = wb.Sheets[n]; const fila1 = ws && XLSX.utils.sheet_to_json(ws, { header: 1, range: 0 })[0];
+      return Array.isArray(fila1) && fila1.some(h => String(h).trim() === 'FechaHoraAprobacionComercial');
+    });
+    if (hojaAprob) {
+      const filas = XLSX.utils.sheet_to_json(wb.Sheets[hojaAprob], { raw: false, defval: '' }).map(fila => {
+        const o = {}; for (const [k, val] of Object.entries(fila)) { const s = String(val).trim(); if (s && s !== '#e') o[k.trim()] = s; }
+        return o;
+      }).filter(o => o.eNCF);
+      if (C.ACECF?.length && Object.keys(C.resA || {}).length && !confirm('Ya hay aprobaciones cargadas con resultados. ¿Reemplazarlas?')) return;
+      Object.assign(C, { archivoA: file.name, ACECF: filas, resA: {} });
+      certGuardar(); toast(`Aprobaciones comerciales cargadas: ${filas.length}`, 'ok');
+      return;
+    }
     if (C.ECF.length && Object.keys(C.res).length && !confirm('Ya hay un set cargado con resultados. ¿Reemplazarlo?')) return;
     Object.assign(C, { archivo: file.name, ECF: hoja('ECF'), RFCE: hoja('RFCE'), res: {} });
-    if (!C.ECF.length) throw new Error('No se encontró la hoja "ECF" con comprobantes en el archivo.');
+    if (!C.ECF.length) throw new Error('El archivo no tiene la hoja "ECF" (comprobantes) ni una hoja de aprobaciones comerciales.');
     certGuardar(); toast(`Set cargado: ${C.ECF.length} comprobantes y ${C.RFCE.length} resúmenes`, 'ok');
   } catch (err) { toast(errMsg(err), 'error'); }
   finally { busy(false); input.value = ''; route(true); }
