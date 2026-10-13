@@ -1433,7 +1433,10 @@ A.simPDFs = async () => {
     await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');
     await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
     const caja = document.createElement('div');
-    caja.style.cssText = 'position:fixed;left:-10000px;top:0;width:780px;background:#fff;color:#000;font-size:12px';
+    // Ancho = área imprimible de una hoja carta con márgenes de 10 mm (215.9 − 20 = 195.9 mm ≈ 740 px)
+    // En la esquina (0,0) detrás de la página: fuera de pantalla html2canvas recorta mal el contenido.
+    caja.style.cssText = 'position:absolute;left:0;top:0;width:740px;z-index:-1;background:#fff;color:#000;font-size:12px;box-sizing:border-box';
+    window.scrollTo(0, 0);
     document.body.appendChild(caja);
     let total = 0;
     for (const { campo, s } of lista.filter(x => x.s)) {
@@ -1441,10 +1444,13 @@ A.simPDFs = async () => {
       busy(true, `Generando PDF tipo ${campo}…`);
       caja.innerHTML = cartaHTML(f);
       await Promise.all([...caja.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
+      const doc = caja.firstElementChild;
+      doc.style.width = '740px'; doc.style.boxSizing = 'border-box';
       const blob = await html2pdf().set({
-        margin: 10, image: { type: 'jpeg', quality: 0.9 }, html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+        margin: 10, image: { type: 'jpeg', quality: 0.9 },
+        html2canvas: { scale: 2, backgroundColor: '#ffffff' },
         jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
-      }).from(caja.firstElementChild).outputPdf('blob');
+      }).from(doc).outputPdf('blob');
       total += blob.size;
       const etiqueta = campo.includes('>=') ? '32 (250 mil o mas)' : campo.includes('<') ? '32 (menos de 250 mil)' : campo;
       const nombre = `RI tipo ${etiqueta} - ${f.ncf}.pdf`;
