@@ -38,6 +38,7 @@ export default {
         if (ruta.endsWith('/fe/aprobacioncomercial/api/ecf') && request.method === 'POST') return await feAprobacionComercial(env, request);
         return json({ mensaje: 'Recurso no encontrado' }, 404);
       } catch (err) {
+        console.log('FE error', request.method, url.pathname, String(err && err.message || err));
         return json({ mensaje: String(err && err.message || err) }, err && err.status || 400);
       }
     }
@@ -177,24 +178,31 @@ async function feRecepcion(env, request) {
   return xmlResp(serialize(acuse));
 }
 
-// Aprobación comercial recibida sobre un e-CF que emitimos
+// Aprobación comercial recibida sobre un e-CF que emitimos.
+// Toda ACECF bien formada se acepta con HTTP 200 (lo exige la DGII); si la factura existe en la app, se anota en ella.
 async function feAprobacionComercial(env, request) {
   await feVerificarToken(env, request);
   const xml = await leerXmlEntrante(request);
   const v = await verificarFirma(xml);
-  if (!v.root || !/(^|:)ACECF$/.test(v.root.n || '')) throw new Error('El archivo no es una aprobación comercial (ACECF).');
-  if (!v.ok) throw new Error('La firma de la aprobación comercial no es válida: ' + v.motivo);
+  if (!v.root || !/(^|:)ACECF$/.test(v.root.n || '')) {
+    console.log('ACECF no válida', xml.slice(0, 300));
+    throw new Error('El archivo no es una aprobación comercial (ACECF).');
+  }
   const rncEmisor = soloDigitos(texto(v.root, 'RNCEmisor')), encf = texto(v.root, 'eNCF').trim();
-  const emp = await empresaPorRnc(env, rncEmisor);
-  if (!emp) throw new Error('El RNC emisor no corresponde a este receptor.');
-  const f = uno(await sbAdmin(env, `facturas?select=id,data,updated_at&empresa_id=eq.${emp.id}&ncf=eq.${encodeURIComponent(encf)}&limit=1`));
   const aprobacion = {
     estado: texto(v.root, 'Estado') === '1' ? 'Aprobada' : 'Rechazada', motivo: texto(v.root, 'DetalleMotivoRechazo'),
-    rncComprador: soloDigitos(texto(v.root, 'RNCComprador')), fecha: texto(v.root, 'FechaHoraAprobacionComercial'), recibida: new Date().toISOString(), xml,
+    rncComprador: soloDigitos(texto(v.root, 'RNCComprador')), fecha: texto(v.root, 'FechaHoraAprobacionComercial'),
+    recibida: new Date().toISOString(), firmaValida: v.ok, xml,
   };
-  if (!f) throw new Error('No se encontró el e-CF ' + encf + ' para esta aprobación comercial.');
-  const data = { ...(f.data || {}), ecf: { ...((f.data || {}).ecf || {}), aprobacionComercial: aprobacion } };
-  await sbAdmin(env, `facturas?id=eq.${f.id}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ data }) });
+  console.log('ACECF recibida', JSON.stringify({ rncEmisor, encf, estado: aprobacion.estado, firma: v.ok, motivoFirma: v.motivo }));
+  try {
+    const emp = await empresaPorRnc(env, rncEmisor);
+    const f = emp && uno(await sbAdmin(env, `facturas?select=id,data&empresa_id=eq.${emp.id}&ncf=eq.${encodeURIComponent(encf)}&limit=1`));
+    if (f) {
+      const data = { ...(f.data || {}), ecf: { ...((f.data || {}).ecf || {}), aprobacionComercial: aprobacion } };
+      await sbAdmin(env, `facturas?id=eq.${f.id}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ data }) });
+    }
+  } catch (e) { console.log('ACECF: no se pudo anotar en la factura', String(e.message || e)); }
   return json({ mensaje: 'Aprobación comercial recibida', estado: aprobacion.estado });
 }
 
