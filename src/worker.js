@@ -4,6 +4,7 @@
 import {
   construirECF, construirRFCE, calcularECF, signTree, importPrivateKey, obtenerToken, enviarECF, enviarRFCE,
   consultarResultado, urlTimbre, fechaHoraRD, b64, unb64, LIMITE_RFCE, AMBIENTES, parseXml, construirDesdeFila, ESQUEMAS, ESQUEMA_ACECF, enviarACECF,
+  verificarFirma, texto, construirARECF, construirACECF, serialize,
 } from './ecf.js';
 
 const SB_URL = 'https://gwvqpnmwqvqrmsbpwmhj.supabase.co';
@@ -27,6 +28,19 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/api/rnc') return consultarRNC(url, ctx);
+    // Servicios de emisor/receptor electrónico que la DGII y otros contribuyentes invocan (no distinguen mayúsculas)
+    const ruta = url.pathname.toLowerCase().replace(/\/+$/, '');
+    if (ruta.includes('/fe/')) {
+      try {
+        if (ruta.endsWith('/fe/autenticacion/api/semilla') && request.method === 'GET') return await feSemilla(env);
+        if (ruta.endsWith('/fe/autenticacion/api/validacioncertificado') && request.method === 'POST') return await feValidarCertificado(env, request);
+        if (ruta.endsWith('/fe/recepcion/api/ecf') && request.method === 'POST') return await feRecepcion(env, request);
+        if (ruta.endsWith('/fe/aprobacioncomercial/api/ecf') && request.method === 'POST') return await feAprobacionComercial(env, request);
+        return json({ mensaje: 'Recurso no encontrado' }, 404);
+      } catch (err) {
+        return json({ mensaje: String(err && err.message || err) }, err && err.status || 400);
+      }
+    }
     if (url.pathname.startsWith('/api/ecf/')) {
       try {
         if (request.method !== 'POST') return json({ ok: false, error: 'Método no permitido' }, 405);
@@ -39,6 +53,7 @@ export default {
         if (ruta === 'consultar') return json(await consultarECF(env, jwt, body));
         if (ruta === 'firmar') return json(await firmarXmlLibre(env, jwt, body));
         if (ruta === 'set') return json(await procesarSet(env, jwt, body));
+        if (ruta === 'aprobar') return json(await aprobarRecibido(env, jwt, body));
         return json({ ok: false, error: 'Ruta no encontrada' }, 404);
       } catch (err) {
         return json({ ok: false, error: String(err && err.message || err) }, 400);
@@ -47,6 +62,141 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+/* ---------------- Servicios receptores /fe/* ---------------- */
+
+// Acceso de servicio a Supabase (sin usuario): necesario porque la DGII llama sin sesión.
+async function sbAdmin(env, path, opts = {}) {
+  const key = env.SUPABASE_SERVICE_KEY;
+  if (!key) throw Object.assign(new Error('Servicio no configurado (falta SUPABASE_SERVICE_KEY).'), { status: 503 });
+  const auth = key.startsWith('eyJ') ? { authorization: `Bearer ${key}` } : {};
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    ...opts, headers: { apikey: key, ...auth, 'content-type': 'application/json', ...(opts.headers || {}) },
+  });
+  const t = await r.text();
+  let d; try { d = t ? JSON.parse(t) : null; } catch { d = t; }
+  if (!r.ok) throw new Error((d && (d.message || d.error)) || `Supabase HTTP ${r.status}`);
+  return d;
+}
+const b64url = buf => b64(buf).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+async function hmac(env, texto) {
+  if (!env.ECF_MASTER_KEY) throw new Error('Servicio no configurado.');
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.ECF_MASTER_KEY + '|fe-receptor'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return b64url(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(texto)));
+}
+const xmlResp = (xml, status = 200) => new Response(xml, { status, headers: { 'content-type': 'application/xml; charset=utf-8' } });
+const fechaUniversal = d => d.toISOString().slice(0, 19) + 'Z';
+const soloDigitos = v => String(v || '').replace(/\D/g, '');
+
+async function leerXmlEntrante(request) {
+  const tipo = request.headers.get('content-type') || '';
+  if (tipo.includes('multipart/form-data')) {
+    const fd = await request.formData();
+    const f = fd.get('xml') || [...fd.values()][0];
+    if (!f) throw new Error('Falta el archivo xml.');
+    return typeof f === 'string' ? f : await f.text();
+  }
+  return await request.text();
+}
+
+// Autenticación: semilla con valor firmado (HMAC) y vigencia de 10 minutos
+async function feSemilla(env) {
+  const t = Date.now(), rnd = b64url(crypto.getRandomValues(new Uint8Array(18)));
+  const valor = `${t}.${rnd}.${await hmac(env, `${t}.${rnd}`)}`;
+  const fecha = new Date(t - 4 * 3600e3).toISOString().replace('Z', '-04:00');
+  return xmlResp(`<?xml version="1.0" encoding="utf-8"?><SemillaModel xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><valor>${valor}</valor><fecha>${fecha}</fecha></SemillaModel>`);
+}
+async function feValidarCertificado(env, request) {
+  const v = await verificarFirma(await leerXmlEntrante(request));
+  if (!v.ok) throw new Error('La firma del archivo no es válida: ' + v.motivo);
+  const [t, rnd, firma] = texto(v.root, 'valor').split('.');
+  if (!t || firma !== await hmac(env, `${t}.${rnd}`)) throw new Error('Semilla no válida.');
+  if (Date.now() - Number(t) > 10 * 60e3) throw new Error('La semilla expiró. Solicite una nueva.');
+  const ahora = new Date(), expira = new Date(ahora.getTime() + 3600e3);
+  const carga = b64url(new TextEncoder().encode(JSON.stringify({ sub: v.sn || '', exp: expira.getTime() })));
+  const token = `${carga}.${await hmac(env, carga)}`;
+  if ((request.headers.get('accept') || '').includes('xml'))
+    return xmlResp(`<?xml version="1.0" encoding="utf-8"?><RespuestaAutenticacion><token>${token}</token><expira>${fechaUniversal(expira)}</expira><expedido>${fechaUniversal(ahora)}</expedido></RespuestaAutenticacion>`);
+  return json({ token, expira: fechaUniversal(expira), expedido: fechaUniversal(ahora) });
+}
+// El token es opcional según la DGII; si se envía, debe ser válido.
+async function feVerificarToken(env, request) {
+  const h = request.headers.get('authorization') || '';
+  if (!h) return;
+  const [carga, firma] = h.replace(/^Bearer\s+/i, '').split('.');
+  let exp = 0;
+  try { exp = JSON.parse(new TextDecoder().decode(unb64(carga.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((carga.length + 3) % 4)))).exp; } catch { }
+  if (!carga || firma !== await hmac(env, carga) || exp < Date.now()) throw Object.assign(new Error('Token inválido o expirado.'), { status: 401 });
+}
+
+async function empresaPorRnc(env, rnc) {
+  if (!/^\d{9}(\d{2})?$/.test(rnc)) return null;
+  return uno(await sbAdmin(env, `empresas?select=id,nombre,data&data->>rnc=eq.${rnc}&limit=1`));
+}
+async function firmanteServicio(env, empresaId) {
+  const c = uno(await sbAdmin(env, `ecf_config?empresa_id=eq.${empresaId}&select=*`));
+  if (!c || !c.key_enc) return null;
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(env.ECF_MASTER_KEY));
+  const key = await crypto.subtle.importKey('raw', h, 'AES-GCM', false, ['decrypt']);
+  const pkcs8 = new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(c.key_iv) }, key, unb64(c.key_enc)));
+  return { privateKey: await importPrivateKey(pkcs8), cert: c.cert_b64 };
+}
+
+// Recepción de e-CF: guarda el comprobante y responde un acuse de recibo (ARECF) firmado por el receptor.
+async function feRecepcion(env, request) {
+  await feVerificarToken(env, request);
+  const xml = await leerXmlEntrante(request);
+  const v = await verificarFirma(xml);
+  if (!v.root || !/(^|:)ECF$/.test(v.root.n || '')) throw new Error('El archivo no es un e-CF válido.');
+  const rncEmisor = soloDigitos(texto(v.root, 'RNCEmisor')), rncComprador = soloDigitos(texto(v.root, 'RNCComprador')), encf = texto(v.root, 'eNCF').trim();
+  if (!rncEmisor || !encf) throw new Error('El e-CF no tiene RNCEmisor o eNCF.');
+  const emp = await empresaPorRnc(env, rncComprador);
+  let motivo = null;
+  if (!v.ok) motivo = 2;                 // Error de firma digital
+  else if (!emp) motivo = 4;             // RNC comprador no corresponde
+  else {
+    const previo = uno(await sbAdmin(env, `ecf_recibidos?select=id&empresa_id=eq.${emp.id}&rnc_emisor=eq.${rncEmisor}&encf=eq.${encodeURIComponent(encf)}&limit=1`));
+    if (previo) motivo = 3;              // Envío duplicado
+  }
+  if (emp && v.ok && motivo === null) {
+    const n = x => { const s = texto(v.root, x); return s ? Number(s) : null; };
+    await sbAdmin(env, 'ecf_recibidos', {
+      method: 'POST', headers: { prefer: 'return=minimal' },
+      body: JSON.stringify({
+        empresa_id: emp.id, rnc_emisor: rncEmisor, razon_social_emisor: texto(v.root, 'RazonSocialEmisor'), encf,
+        tipo: texto(v.root, 'TipoeCF'), fecha_emision: texto(v.root, 'FechaEmision'), monto_total: n('MontoTotal'), total_itbis: n('TotalITBIS'),
+        xml, firma_valida: true, acuse_estado: 0,
+      }),
+    });
+  }
+  const acuse = construirARECF({
+    rncEmisor, rncComprador: rncComprador || '000000000', encf, recibido: motivo === null, motivo: motivo ?? undefined, fechaHora: fechaHoraRD(),
+  });
+  const s = emp ? await firmanteServicio(env, emp.id).catch(() => null) : null;
+  if (s) return xmlResp((await signTree(acuse, s.privateKey, s.cert)).xml);
+  return xmlResp(serialize(acuse));
+}
+
+// Aprobación comercial recibida sobre un e-CF que emitimos
+async function feAprobacionComercial(env, request) {
+  await feVerificarToken(env, request);
+  const xml = await leerXmlEntrante(request);
+  const v = await verificarFirma(xml);
+  if (!v.root || !/(^|:)ACECF$/.test(v.root.n || '')) throw new Error('El archivo no es una aprobación comercial (ACECF).');
+  if (!v.ok) throw new Error('La firma de la aprobación comercial no es válida: ' + v.motivo);
+  const rncEmisor = soloDigitos(texto(v.root, 'RNCEmisor')), encf = texto(v.root, 'eNCF').trim();
+  const emp = await empresaPorRnc(env, rncEmisor);
+  if (!emp) throw new Error('El RNC emisor no corresponde a este receptor.');
+  const f = uno(await sbAdmin(env, `facturas?select=id,data,updated_at&empresa_id=eq.${emp.id}&ncf=eq.${encodeURIComponent(encf)}&limit=1`));
+  const aprobacion = {
+    estado: texto(v.root, 'Estado') === '1' ? 'Aprobada' : 'Rechazada', motivo: texto(v.root, 'DetalleMotivoRechazo'),
+    rncComprador: soloDigitos(texto(v.root, 'RNCComprador')), fecha: texto(v.root, 'FechaHoraAprobacionComercial'), recibida: new Date().toISOString(), xml,
+  };
+  if (!f) throw new Error('No se encontró el e-CF ' + encf + ' para esta aprobación comercial.');
+  const data = { ...(f.data || {}), ecf: { ...((f.data || {}).ecf || {}), aprobacionComercial: aprobacion } };
+  await sbAdmin(env, `facturas?id=eq.${f.id}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify({ data }) });
+  return json({ mensaje: 'Aprobación comercial recibida', estado: aprobacion.estado });
+}
 
 /* ---------------- Facturación electrónica ---------------- */
 
@@ -234,6 +384,43 @@ async function procesarSet(env, jwt, { empresaId, ambiente = 'certecf', accion, 
     if (q && q.codigo !== 3 && q.codigo !== 0) { res = { ...res, ...resumen(q), trackId: d.trackId }; break; }
   }
   return res;
+}
+
+// Aprobación comercial (ACECF) de un e-CF recibido: se firma y se envía a la DGII y, si es posible, al emisor.
+async function aprobarRecibido(env, jwt, { recibidoId, aprobado, motivo }) {
+  const r = uno(await sb(jwt, `ecf_recibidos?id=eq.${recibidoId}&select=*`));
+  if (!r) throw new Error('Comprobante recibido no encontrado.');
+  if (!aprobado && !String(motivo || '').trim()) throw new Error('Indica el motivo del rechazo.');
+  const root = parseXml(r.xml);
+  const emp = uno(await sb(jwt, `empresas?id=eq.${r.empresa_id}&select=data`));
+  const rncComprador = String((emp.data || {}).rnc || '').replace(/\D/g, '');
+  const montoTotal = Number(texto(root, 'MontoTotal') || r.monto_total || 0).toFixed(2);
+  const s = await firmante(env, jwt, r.empresa_id);
+  const acecf = construirACECF({
+    rncEmisor: r.rnc_emisor, encf: r.encf, fechaEmision: texto(root, 'FechaEmision'), montoTotal, rncComprador,
+    aprobado: !!aprobado, motivo, fechaHora: fechaHoraRD(),
+  });
+  const { xml } = await signTree(acecf, s.privateKey, s.cert);
+  const fileName = rncComprador + r.encf + '.xml';
+  const token = await obtenerToken(s.ambiente, s.privateKey, s.cert, 'empresa:' + r.empresa_id);
+  const d = await enviarACECF(s.ambiente, token, xml, fileName);
+  const resultado = {
+    estado: aprobado ? 'Aprobada' : 'Rechazada', motivo: aprobado ? '' : motivo, fecha: new Date().toISOString(), xml,
+    dgii: { codigo: d.codigo, estado: d.estado || '', mensajes: [].concat(d.mensaje || []).filter(Boolean) },
+  };
+  // Envío al emisor según el directorio de la DGII (si el servicio está disponible en el ambiente)
+  try {
+    const dir = await fetch(`${AMBIENTES[s.ambiente].ecf}/consultadirectorio/api/consultas/obtenerdirectorioporrnc?RNC=${r.rnc_emisor}`, { headers: { accept: 'application/json', authorization: 'Bearer ' + token } });
+    const lista = dir.ok ? await dir.json() : [];
+    const url = (Array.isArray(lista) ? lista[0] : lista)?.urlAceptacion;
+    if (url) {
+      const fd = new FormData(); fd.append('xml', new Blob([xml], { type: 'text/xml' }), fileName);
+      const re = await fetch(url.replace(/\/+$/, '') + (/\/fe\/aprobacioncomercial\/api\/ecf$/i.test(url) ? '' : '/fe/aprobacioncomercial/api/ecf'), { method: 'POST', body: fd });
+      resultado.emisor = { url, status: re.status };
+    }
+  } catch (e) { resultado.emisor = { error: String(e.message || e) }; }
+  await sb(jwt, `ecf_recibidos?id=eq.${recibidoId}`, { method: 'PATCH', body: JSON.stringify({ aprobacion: resultado }), headers: { prefer: 'return=minimal' } });
+  return { ok: true, aprobacion: resultado };
 }
 
 // Firma con el certificado de la empresa un XML cualquiera (p. ej. los que pide la DGII en la postulación).

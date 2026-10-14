@@ -604,7 +604,7 @@ function downloadCSV(name, rows) {
 const NAV = [
   ['dashboard', 'Dashboard', 'dash'], ['facturas', 'Facturas', 'inv'], ['clientes', 'Clientes', 'users'],
   ['productos', 'Productos y servicios', 'box'], ['reportes', 'Reportes', 'chart'],
-  ['empresas', 'Empresas', 'building'], ['certificacion', 'Certificación DGII', 'receipt'], ['ajustes', 'Respaldo y ajustes', 'gear'],
+  ['recibidos', 'e-CF recibidos', 'down'], ['empresas', 'Empresas', 'building'], ['certificacion', 'Certificación DGII', 'receipt'], ['ajustes', 'Respaldo y ajustes', 'gear'],
 ];
 function parseHash() {
   const h = location.hash.replace(/^#\/?/, '') || 'dashboard';
@@ -658,6 +658,7 @@ function route(keepScroll) {
       case 'empresas': return viewEmpresas(v);
       case 'ajustes': return viewAjustes(v);
       case 'certificacion': return viewCertificacion(v);
+      case 'recibidos': return viewRecibidos(v);
       default: location.hash = '#/dashboard';
     }
   } catch (err) {
@@ -1091,6 +1092,7 @@ function tarjetaECF(f) {
         ${x.trackId ? `<dt>TrackId</dt><dd class="mono small">${esc(x.trackId)}</dd>` : ''}
         ${x.codigoSeguridad ? `<dt>Código de seguridad</dt><dd class="mono">${esc(x.codigoSeguridad)}</dd>` : ''}
         ${x.fechaFirma ? `<dt>Fecha de firma</dt><dd>${esc(x.fechaFirma)}</dd>` : ''}
+        ${x.aprobacionComercial ? `<dt>Aprobación comercial</dt><dd><span class="pill ${x.aprobacionComercial.estado === 'Aprobada' ? 'green' : 'red'}">${esc(x.aprobacionComercial.estado)}</span>${x.aprobacionComercial.motivo ? `<span class="sub">${esc(x.aprobacionComercial.motivo)}</span>` : ''}</dd>` : ''}
       </dl>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
         ${puedeEnviar ? `<button class="btn primary" onclick="A.enviarECF('${f.id}')">${icon('receipt')} ${x.estado ? 'Reenviar' : 'Enviar'} a la DGII</button>` : ''}
@@ -1205,6 +1207,59 @@ A.configECF = async eid => {
     }
   });
 };
+
+/* =========================================================
+   e-CF RECIBIDOS — comprobantes que otros contribuyentes envían a la empresa (/fe/recepcion)
+   ========================================================= */
+let RECIBIDOS = null;
+async function viewRecibidos(v) {
+  const e = emp();
+  crumbs([e.nombre, '#/dashboard'], ['e-CF recibidos']);
+  v.innerHTML = `<div class="page-head"><h1>e-CF recibidos</h1><button class="btn" onclick="RECIBIDOS=null;route(true)">${icon('undo')} Actualizar</button></div>
+    <div class="alert info mb"><div>Comprobantes electrónicos que tus proveedores (o la DGII en la certificación) envían al RNC <b>${esc(fmtId(e.rnc))}</b> a través de
+      <span class="mono small">https://facturacion-rd.ipmplaza.workers.dev/fe/recepcion/api/ecf</span>. Desde aquí das la <b>aprobación comercial</b>, que se firma y se envía a la DGII.</div></div>
+    <div class="card"><div class="empty"><div class="spinner"></div>Cargando…</div></div>`;
+  try {
+    if (!RECIBIDOS || RECIBIDOS.empresaId !== e.id) RECIBIDOS = { empresaId: e.id, filas: chk(await sb.from('ecf_recibidos').select('*').eq('empresa_id', e.id).order('recibido_at', { ascending: false })) };
+  } catch (err) {
+    v.querySelector('.card').innerHTML = `<div class="empty">${esc(errMsg(err))}${/ecf_recibidos/.test(String(err.message)) ? '<br>Ejecuta supabase/ecf4.sql en Supabase.' : ''}</div>`;
+    return;
+  }
+  const filas = RECIBIDOS.filas;
+  v.querySelector('.card').outerHTML = `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Recibido</th><th>Emisor</th><th>e-NCF</th><th>Tipo</th><th class="right">Total</th><th>Acuse</th><th>Aprobación comercial</th><th></th></tr></thead><tbody>
+    ${filas.length ? filas.map(r => { const a = r.aprobacion || {}; return `<tr>
+      <td class="nowrap small">${new Date(r.recibido_at).toLocaleString('es-DO')}</td>
+      <td>${esc(r.razon_social_emisor || '')}<span class="sub mono">RNC ${esc(fmtId(r.rnc_emisor))}</span></td>
+      <td class="mono small">${esc(r.encf)}</td><td>E${esc(r.tipo || '')}</td><td class="right nowrap">${money(r.monto_total)}</td>
+      <td>${r.acuse_estado === 0 ? '<span class="pill green">Recibido</span>' : '<span class="pill red">No recibido</span>'}</td>
+      <td>${a.estado ? `<span class="pill ${a.estado === 'Aprobada' ? 'green' : 'red'}">${esc(a.estado)}</span><span class="sub">DGII: ${esc(a.dgii?.estado || '—')}${(a.dgii?.mensajes || []).length ? ' · ' + a.dgii.mensajes.map(esc).join(' · ') : ''}</span>` : '<span class="pill gray">Pendiente</span>'}</td>
+      <td class="right nowrap">
+        ${!a.estado || a.error ? `<button class="btn sm primary" onclick="A.aprobarRecibido('${r.id}',true)">Aprobar</button> <button class="btn sm danger" onclick="A.aprobarRecibido('${r.id}',false)">Rechazar</button>` : ''}
+        <button class="icon-btn" title="Descargar XML" onclick="A.xmlRecibido('${r.id}')">${icon('down')}</button></td></tr>`; }).join('')
+      : `<tr><td colspan="8"><div class="empty">Aún no has recibido comprobantes electrónicos.</div></td></tr>`}
+  </tbody></table></div></div>`;
+}
+A.aprobarRecibido = (id, aprobado) => {
+  const r = RECIBIDOS.filas.find(x => x.id === id);
+  const enviar = async motivo => {
+    busy(true, 'Firmando y enviando la aprobación comercial…');
+    try {
+      const { aprobacion } = await apiECF('aprobar', { recibidoId: id, aprobado, motivo });
+      r.aprobacion = aprobacion;
+      toast(`Aprobación comercial ${aprobacion.estado.toLowerCase()} · DGII: ${aprobacion.dgii.estado || 'enviada'}`, 'ok');
+    } catch (err) { toast(errMsg(err), 'error'); }
+    finally { busy(false); route(true); }
+  };
+  if (aprobado) return confirmar('Aprobar comprobante', `¿Aprobar comercialmente el e-CF <b>${esc(r.encf)}</b> de ${esc(r.razon_social_emisor || r.rnc_emisor)} por ${money(r.monto_total)}?`, () => enviar(''), { okText: 'Aprobar', danger: false });
+  modal('Rechazar comprobante', `<div class="field"><label>Motivo del rechazo (obligatorio)</label><textarea class="in" name="motivo" rows="3" maxlength="250"></textarea></div>`, {
+    okText: 'Rechazar', danger: true, onOk: async form => {
+      const m = form.elements.motivo.value.trim();
+      if (!m) { toast('Escribe el motivo del rechazo.', 'error'); return false; }
+      setTimeout(() => enviar(m), 0);
+    }
+  });
+};
+A.xmlRecibido = id => { const r = RECIBIDOS.filas.find(x => x.id === id); download(`${r.rnc_emisor}${r.encf}.xml`, r.xml, 'text/xml'); };
 
 /* =========================================================
    CERTIFICACIÓN DGII — set de pruebas (Excel que entrega la DGII)
