@@ -860,7 +860,10 @@ function viewFacturas(v) {
   const e = emp();
   crumbs([e.nombre, '#/dashboard'], ['Facturas']);
   v.innerHTML = `
-  <div class="page-head"><h1>Facturas</h1><a class="btn primary" href="#/facturas/nueva">${icon('plus')} Crear</a></div>
+  <div class="page-head"><h1>Facturas</h1><div style="display:flex;gap:8px;flex-wrap:wrap">
+    ${esAdmin() && facturas().some(esPrueba) ? `<button class="btn danger" onclick="A.borrarPruebas()">${icon('trash')} Borrar pruebas (${facturas().filter(esPrueba).length})</button>` : ''}
+    ${esAdmin() ? `<button class="btn" onclick="A.importarXML()">${icon('down')} Importar XML</button>` : ''}
+    <a class="btn primary" href="#/facturas/nueva">${icon('plus')} Crear</a></div></div>
   <div class="toolbar"><div class="search">${icon('search')}<input id="lf-q" placeholder="Buscar por número, NCF, cliente o RNC…" value="${esc(LF.q)}" oninput="A.lf('q',this.value)"></div></div>
   <div class="toolbar">
     <label class="chip-select"><span>Comprobante:</span><select onchange="A.lf('tipo',this.value)">
@@ -1001,6 +1004,7 @@ function viewFactura(v, id) {
       ${!esNota(f.tipo) && !esEgreso(f.tipo) && f.ncf && f.estado !== 'anulada' ? `<a class="btn" href="#/facturas/nueva?nota=${f.id}">${icon('undo')} Nota de crédito</a>` : ''}
       ${esECF(f.tipo) && !esRef(f.tipo) && !esEgreso(f.tipo) && f.estado !== 'anulada' && seqInfo(emp(), 'E33') ? `<a class="btn" href="#/facturas/nueva?debito=${f.id}">${icon('plus')} Nota de débito</a>` : ''}
       ${f.estado !== 'anulada' && !ecfValido && !(esECF(f.tipo) && ecf.estado === 'En Proceso') ? `<button class="btn danger" onclick="A.anular('${f.id}')">${icon('ban')} Anular</button>` : ''}
+      ${puedeBorrar(f) ? `<button class="btn danger" onclick="A.borrarFactura('${f.id}')">${icon('trash')} Eliminar</button>` : ''}
       ${ecfValido ? `<div class="muted small" style="width:100%">Un e-CF aceptado por la DGII no se anula: emite una nota de crédito electrónica (E34).</div>` : ''}
       ${!editable && f.estado !== 'anulada' ? `<div class="muted small" style="width:100%">Para editar, elimina primero los pagos${notas.length ? ' y notas de crédito' : ''}. Lo correcto fiscalmente es emitir una nota de crédito.</div>` : ''}
     </div></div>
@@ -1051,6 +1055,202 @@ A.anular = id => {
       await mutateFactura(id, d => { d.estado = 'anulada'; d.anulada = anulada; });
       toast('Documento anulado'); route(true);
     } });
+};
+
+/* ---------- Borrar documentos (pruebas o errores) ---------- */
+// Comprobantes enviados a los ambientes de prueba de la DGII (pre-certificación / certificación): no tienen validez fiscal.
+const esPrueba = f => ['testecf', 'certecf'].includes(f.ecf?.ambiente);
+// Un e-CF que la app envió en producción y la DGII aceptó no se borra (también lo impide la base de datos).
+const puedeBorrar = f => esAdmin() && !(f.ecf?.ambiente === 'ecf' && f.ecf?.trackId && ['Aceptado', 'Aceptado Condicional'].includes(f.ecf?.estado));
+async function borrarFacturas(ids) {
+  let n = 0;
+  for (let i = 0; i < ids.length; i += 100) {
+    const del = chk(await sb.from('facturas').delete().in('id', ids.slice(i, i + 100)).select('id'));
+    n += del.length;
+    const set = new Set(del.map(r => r.id));
+    DB.facturas = DB.facturas.filter(f => !set.has(f.id));
+  }
+  if (!n && ids.length) throw new Error('No se borró nada. Ejecuta supabase/ecf5.sql en Supabase (permiso para borrar).');
+  return n;
+}
+A.borrarFactura = id => {
+  const f = getF(id);
+  if (DB.facturas.some(n => n.facturaAfectadaId === id)) return toast('Primero elimina las notas de crédito/débito que afectan a este documento.', 'error');
+  const real = f.ncf && !esPrueba(f);
+  confirmar('Eliminar ' + f.numero, `${real ? `<div class="alert warn mb">El comprobante <b>${esc(f.ncf)}</b> es real. Borrarlo solo lo quita de la app: <b>no lo anula en la DGII</b>. Si la venta no ocurrió, lo correcto es ${esECF(f.tipo) ? 'emitir una nota de crédito (E34)' : 'anularlo (formato 608)'}.</div>` : ''}
+    ¿Eliminar definitivamente <b>${esc(f.numero)}</b>${f.ncf ? ` (${esc(f.ncf)})` : ''}? Dejará de aparecer en facturas, reportes y resúmenes. No se puede deshacer.`, async () => {
+    try { await borrarFacturas([id]); toast('Documento eliminado', 'ok'); location.hash = '#/facturas'; }
+    catch (err) { toast(errMsg(err), 'error'); }
+  }, { okText: 'Eliminar' });
+};
+A.borrarPruebas = () => {
+  const lista = facturas().filter(esPrueba);
+  const porTipo = {};
+  lista.forEach(f => { porTipo[f.tipo] = (porTipo[f.tipo] || 0) + 1; });
+  confirmar('Borrar comprobantes de prueba', `Se eliminarán <b>${lista.length}</b> documentos enviados a los ambientes de prueba/certificación de la DGII (${Object.entries(porTipo).map(([t, n]) => `${t}: ${n}`).join(', ')}). No tienen validez fiscal. También se borran los clientes de prueba de la simulación que queden sin facturas.<br><br>Los comprobantes de producción no se tocan. ¿Continuar?`, async () => {
+    busy(true, 'Borrando comprobantes de prueba…');
+    try {
+      const n = await borrarFacturas(lista.map(f => f.id));
+      // Clientes ficticios que creó la simulación de certificación
+      const ficticios = Object.values(SIM_PARTES).map(p => p.rnc || p.idExtranjero);
+      const sobran = clientes().filter(c => ficticios.includes(c.rnc || c.idExtranjero) && !DB.facturas.some(f => f.clienteId === c.id));
+      for (const c of sobran) { try { chk(await sb.from('clientes').delete().eq('id', c.id)); DB.clientes = DB.clientes.filter(x => x.id !== c.id); } catch (e) { } }
+      toast(`${n} comprobantes de prueba eliminados${sobran.length ? ` y ${sobran.length} clientes de prueba` : ''}.`, 'ok');
+    } catch (err) { toast(errMsg(err), 'error'); }
+    finally { busy(false); route(true); }
+  }, { okText: 'Borrar pruebas' });
+};
+
+/* ---------- Importar e-CF (XML) emitidos en el Facturador Gratuito de la DGII u otro sistema ---------- */
+const xtx = (el, tag) => { const n = el && el.getElementsByTagNameNS('*', tag)[0]; return n ? n.textContent.trim() : ''; };
+const fechaISO = s => { const m = /^(\d{2})-(\d{2})-(\d{4})/.exec(s || ''); return m ? `${m[3]}-${m[2]}-${m[1]}` : ''; };
+const TASA_IND = { 1: 18, 2: 16, 3: 0, 4: 0 };
+const METODO_FORMA = { 1: 'Efectivo', 2: 'Transferencia', 3: 'Tarjeta' };
+function leerECF(nombre, texto) {
+  const doc = new DOMParser().parseFromString(texto.replace(/^﻿/, ''), 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('no es un XML válido');
+  const raiz = doc.documentElement.localName;
+  if (raiz === 'RFCE') throw new Error('es un resumen (RFCE); sube el XML completo del e-CF');
+  if (raiz !== 'ECF') throw new Error(`no es un e-CF (es ${raiz})`);
+  const tipo = 'E' + xtx(doc, 'TipoeCF'), encf = xtx(doc, 'eNCF').toUpperCase();
+  if (!NCF_TIPOS[tipo] || !/^E\d{12}$/.test(encf)) throw new Error('tipo o e-NCF inválido');
+  const fecha = fechaISO(xtx(doc, 'FechaEmision'));
+  if (!fecha) throw new Error('sin fecha de emisión');
+  const incluyeItbis = xtx(doc, 'IndicadorMontoGravado') === '1';
+  const items = [...doc.getElementsByTagNameNS('*', 'Item')].map(it => {
+    const tasa = TASA_IND[+xtx(it, 'IndicadorFacturacion')] ?? 0, k = incluyeItbis && tasa ? 1 + tasa / 100 : 1;
+    const cantidad = num(xtx(it, 'CantidadItem')) || 1, precio = num(xtx(it, 'PrecioUnitarioItem')) / k;
+    const descM = num(xtx(it, 'DescuentoMonto')) / k, bruto = cantidad * precio;
+    const desc = xtx(it, 'DescripcionItem');
+    return { id: uid(), descripcion: xtx(it, 'NombreItem') + (desc ? ' — ' + desc : ''), sku: xtx(it, 'CodigoItem'), cantidad,
+      precio: Math.round(precio * 10000) / 10000, descuento: bruto ? Math.round(descM / bruto * 1e6) / 1e4 : 0, itbis: tasa };
+  });
+  if (!items.length) throw new Error('no tiene ítems');
+  const montoTxt = xtx(doc, 'MontoTotal'), montoTotal = num(montoTxt);
+  const tipoPago = xtx(doc, 'TipoPago'), credito = tipoPago === '2';
+  const formas = [...doc.getElementsByTagNameNS('*', 'FormaDePago')].map(fp => ({ forma: +xtx(fp, 'FormaPago'), monto: num(xtx(fp, 'MontoPago')) })).filter(p => p.monto > 0 && p.forma !== 4);
+  const firma = xtx(doc, 'SignatureValue').replace(/\s/g, '');
+  return {
+    archivo: nombre, tipo, encf, fecha, montoTotal, montoTxt, credito, formas, items,
+    rncEmisor: digits(xtx(doc, 'RNCEmisor')), fechaEmisionTxt: xtx(doc, 'FechaEmision'),
+    vence: fechaISO(xtx(doc, 'FechaVencimientoSecuencia')), limitePago: fechaISO(xtx(doc, 'FechaLimitePago')),
+    comprador: { rnc: digits(xtx(doc, 'RNCComprador')), idExtranjero: xtx(doc, 'IdentificadorExtranjero'), nombre: xtx(doc, 'RazonSocialComprador'), direccion: xtx(doc, 'DireccionComprador'), email: xtx(doc, 'CorreoComprador') },
+    ncfModificado: xtx(doc, 'NCFModificado').toUpperCase(),
+    codigoSeguridad: firma.slice(0, 6), fechaFirma: xtx(doc, 'FechaHoraFirma'), xml: texto,
+  };
+}
+function qrTimbre(d) {
+  const e = encodeURIComponent;
+  if (d.tipo === 'E32' && d.montoTotal < LIMITE_RFCE)
+    return `https://fc.dgii.gov.do/ecf/consultatimbrefc?rncemisor=${e(d.rncEmisor)}&encf=${e(d.encf)}&montototal=${e(d.montoTxt)}&codigoseguridad=${e(d.codigoSeguridad)}`;
+  return `https://ecf.dgii.gov.do/ecf/consultatimbre?rncemisor=${e(d.rncEmisor)}${d.comprador.rnc ? `&rnccomprador=${e(d.comprador.rnc)}` : ''}&encf=${e(d.encf)}&fechaemision=${e(d.fechaEmisionTxt)}&montototal=${e(d.montoTxt)}&fechafirma=${e(d.fechaFirma).replace(/%3A/g, ':')}&codigoseguridad=${e(d.codigoSeguridad)}`;
+}
+let IMPORT = [];
+A.importarXML = () => {
+  IMPORT = [];
+  modal('Importar e-CF (XML)', `
+    <div class="alert info mb"><div>Sube los <b>XML firmados</b> de los comprobantes que emitiste en el <b>Facturador Gratuito</b> de la DGII (o en otro sistema). Puedes elegir varios a la vez o un <b>.zip</b>.<br>
+    Se registran como e-CF ya aceptados: no se vuelven a enviar a la DGII. Si su e-NCF está dentro de tus secuencias, la app avanza el "Último usado" para no repetirlo.</div></div>
+    <input type="file" id="imp-files" multiple accept=".xml,.zip,text/xml,application/zip" onchange="A.importarLeer(this.files)">
+    <div id="imp-prev" class="mt"></div>`, { wide: true, okText: 'Importar', onOk: () => A.importarGuardar() });
+};
+A.importarLeer = async files => {
+  const e = emp(), out = [];
+  busy(true, 'Leyendo archivos…');
+  try {
+    for (const file of files) {
+      if (/\.zip$/i.test(file.name)) {
+        await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+        const zip = await JSZip.loadAsync(file);
+        for (const z of Object.values(zip.files).filter(z => !z.dir && /\.xml$/i.test(z.name))) out.push([z.name.split('/').pop(), await z.async('string')]);
+      } else out.push([file.name, await file.text()]);
+    }
+  } catch (err) { toast('No se pudo leer: ' + errMsg(err), 'error'); }
+  finally { busy(false); }
+  const vistos = new Set();
+  IMPORT = out.map(([nombre, texto]) => {
+    try {
+      const d = leerECF(nombre, texto);
+      const prev = facturas().find(f => f.ncf === d.encf);
+      if (d.rncEmisor !== digits(e.rnc)) d.error = `es de otro emisor (RNC ${d.rncEmisor})`;
+      else if (prev) d.error = esPrueba(prev) ? 'ese e-NCF está ocupado por un comprobante de prueba: usa "Borrar pruebas" primero' : 'ya está registrado';
+      else if (vistos.has(d.encf)) d.error = 'repetido en la selección';
+      vistos.add(d.encf);
+      if (!d.error) {
+        const t = calc({ items: d.items }).total;
+        if (Math.abs(t - d.montoTotal) > 0.05) d.aviso = `total calculado ${money(t)}`;
+      }
+      return d;
+    } catch (err) { return { archivo: nombre, error: err.message }; }
+  });
+  const ok = IMPORT.filter(d => !d.error);
+  $('#imp-prev').innerHTML = !IMPORT.length ? '<div class="empty">No se encontraron archivos XML.</div>' : `
+    <div class="small mb"><b>${ok.length}</b> listos para importar${IMPORT.length - ok.length ? ` · ${IMPORT.length - ok.length} con problemas (se omiten)` : ''}</div>
+    <div class="tbl-wrap" style="max-height:340px;overflow:auto"><table><thead><tr><th>e-NCF</th><th>Fecha</th><th>Cliente</th><th class="right">Total</th><th>Estado</th></tr></thead><tbody>
+    ${IMPORT.map(d => `<tr><td class="mono small">${esc(d.encf || d.archivo)}</td><td class="nowrap">${d.fecha ? fdate(d.fecha) : ''}</td>
+      <td>${d.comprador ? esc(d.comprador.nombre || 'Consumidor Final') : ''}</td><td class="right mono">${d.montoTotal != null ? money(d.montoTotal) : ''}</td>
+      <td>${d.error ? `<span class="pill red">Omitido</span><span class="sub">${esc(d.error)}</span>` : `<span class="pill green">Nuevo</span>${d.aviso ? `<span class="sub">⚠ ${esc(d.aviso)}; se guarda el XML original</span>` : ''}`}</td></tr>`).join('')}
+    </tbody></table></div>`;
+};
+A.importarGuardar = async () => {
+  const lista = IMPORT.filter(d => !d.error);
+  if (!lista.length) { toast('Elige archivos XML válidos para importar.', 'error'); return false; }
+  const e = emp();
+  // Primero facturas, luego notas (para enlazarlas con la factura que modifican)
+  lista.sort((a, b) => (esRef(a.tipo) - esRef(b.tipo)) || a.encf.localeCompare(b.encf));
+  busy(true, `Importando ${lista.length} comprobantes…`);
+  let n = 0; const fallos = [];
+  try {
+    for (const d of lista) {
+      try {
+        let cli = null;
+        const c = d.comprador;
+        if (c.rnc || c.idExtranjero) {
+          cli = clientes().find(x => (c.rnc && digits(x.rnc) === c.rnc) || (c.idExtranjero && x.idExtranjero === c.idExtranjero));
+          if (!cli) {
+            cli = { id: uid(), empresaId: e.id, nombre: c.nombre || c.rnc || c.idExtranjero, rnc: c.rnc, idExtranjero: c.rnc ? '' : c.idExtranjero, direccion: c.direccion, telefono: '', email: c.email, creado: new Date().toISOString() };
+            chk(await sb.from('clientes').upsert({ id: cli.id, empresa_id: e.id, data: stripIds(cli) }));
+            putCache('clientes', cli);
+          }
+        }
+        const base = { items: d.items };
+        const total = calc(base).total;
+        const vencimiento = d.credito ? (d.limitePago || d.fecha) : '';
+        const pagos = [];
+        if (!d.credito && !esRef(d.tipo) && !esEgreso(d.tipo)) {
+          (d.formas.length ? d.formas : [{ forma: 1, monto: total }]).forEach(p => pagos.push({ id: uid(), fecha: d.fecha, metodo: METODO_FORMA[p.forma] || 'Otro', monto: r2(p.monto), referencia: '', por: SESSION.user.email }));
+          const dif = r2(total - pagos.reduce((s, p) => s + p.monto, 0));
+          if (dif) pagos[pagos.length - 1].monto = r2(pagos[pagos.length - 1].monto + dif);
+        }
+        const afectada = d.ncfModificado ? facturas().find(f => f.ncf === d.ncfModificado) : null;
+        const data = {
+          clienteId: cli ? cli.id : '',
+          cliente: cli ? { nombre: cli.nombre, rnc: cli.rnc, idExtranjero: cli.idExtranjero || '', direccion: cli.direccion, telefono: cli.telefono, email: cli.email } : { nombre: c.nombre || 'Consumidor Final' },
+          fecha: d.fecha, condicion: d.credito ? 'credito' : 'contado', diasCredito: d.credito ? Math.max(0, daysBetween(d.fecha, vencimiento)) : 0, vencimiento,
+          items: d.items, propina: false, notas: '', facturaAfectadaId: afectada ? afectada.id : '', ncfModificado: d.ncfModificado,
+          creada: new Date().toISOString(), creadaPor: SESSION.user.email, pagos, estado: 'emitida',
+          numero: d.encf, tipo: d.tipo, ncf: d.encf, ncfVence: d.vence,
+          importado: { origen: 'XML', archivo: d.archivo, fecha: new Date().toISOString(), montoTotal: d.montoTotal },
+          ecf: { estado: 'Aceptado', ambiente: 'ecf', importado: true, codigoSeguridad: d.codigoSeguridad, fechaFirma: d.fechaFirma, xml: d.xml, qr: qrTimbre(d), rfce: d.tipo === 'E32' && d.montoTotal < LIMITE_RFCE },
+        };
+        const row = chk(await sb.from('facturas').insert({ empresa_id: e.id, numero: d.encf, tipo: d.tipo, ncf: d.encf, fecha: d.fecha, data }).select().single());
+        putCache('facturas', fromFacturaRow(row)); n++;
+      } catch (err) { fallos.push(`${d.encf}: ${errMsg(err)}`); }
+    }
+    // Avanza "Último usado" de las secuencias para que la app no repita esos e-NCF
+    const avanzadas = [];
+    for (const t of [...new Set(lista.map(d => d.tipo))]) {
+      const s = e.secuencias?.[t]; if (!s) continue;
+      const usados = lista.filter(d => d.tipo === t).map(d => Number(d.encf.slice(3))).filter(x => x >= num(s.desde) && (!s.hasta || x <= num(s.hasta)));
+      const max = Math.max(0, ...usados);
+      if (max > num(s.actual)) {
+        try { chk(await sb.from('secuencias').update({ actual: max }).eq('empresa_id', e.id).eq('tipo', t).lt('actual', max)); avanzadas.push(`${t} → ${max}`); } catch (err) { fallos.push(`Secuencia ${t}: ${errMsg(err)}`); }
+      }
+    }
+    if (avanzadas.length) await reloadEmpresa(e.id).catch(() => { });
+    toast(`${n} comprobantes importados.${avanzadas.length ? ' Secuencias avanzadas: ' + avanzadas.join(', ') + '.' : ''}`, 'ok');
+    if (fallos.length) setTimeout(() => modal('Algunos no se importaron', `<div class="alert err"><div>${fallos.map(esc).join('<br>')}</div></div>`, { noFooter: true }), 300);
+  } finally { busy(false); route(true); }
 };
 
 /* =========================================================
