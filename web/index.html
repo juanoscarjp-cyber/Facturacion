@@ -1219,7 +1219,7 @@ A.registrarPago = id => {
         <div style="display:flex;gap:6px"><select class="in" name="pctItbis" onchange="A.pagoRet(this.form,'itbis')" ${t.itbis ? '' : 'disabled'}>${opts([['0', 'Sin retención'], ['30', '30% del ITBIS'], ['100', '100% del ITBIS'], ['otro', 'Otro monto']])}</select>
         <input class="in" name="retItbis" type="number" step="0.01" min="0" value="0.00" style="max-width:120px" oninput="A.pagoRet(this.form)" ${t.itbis ? '' : 'disabled'}></div></div>
       <div class="field"><label>ISR retenido <span class="muted small">(sobre ${money(t.base)} sin ITBIS)</span></label>
-        <div style="display:flex;gap:6px"><select class="in" name="pctIsr" onchange="A.pagoRet(this.form,'isr')">${opts([['0', 'Sin retención'], ['10', '10% (servicios)'], ['2', '2%'], ['5', '5%'], ['otro', 'Otro monto']])}</select>
+        <div style="display:flex;gap:6px"><select class="in" name="pctIsr" onchange="A.pagoRet(this.form,'isr')">${opts([['0', 'Sin retención'], ['15', '15%'], ['10', '10% (servicios)'], ['5', '5%'], ['2', '2%'], ['otro', 'Otro monto']])}</select>
         <input class="in" name="retIsr" type="number" step="0.01" min="0" value="0.00" style="max-width:120px" oninput="A.pagoRet(this.form)"></div></div>
     </div>
     ${prev.itbis || prev.isr ? `<div class="hint small muted mb">Ya retenido en pagos anteriores: ITBIS ${money(prev.itbis)} · ISR ${money(prev.isr)}. Los porcentajes descuentan lo ya retenido.</div>` : ''}
@@ -1249,7 +1249,7 @@ A.registrarPago = id => {
   const fm = $('#modal-root form'), n = f.neto;
   if (n && !prev.itbis && !prev.isr) {
     if (num(n.itbis) && !fm.elements.pctItbis.disabled) fm.elements.pctItbis.value = String(num(n.itbis));
-    if (num(n.isr)) fm.elements.pctIsr.value = [2, 5, 10].includes(num(n.isr)) ? String(num(n.isr)) : 'otro';
+    if (num(n.isr)) fm.elements.pctIsr.value = [2, 5, 10, 15].includes(num(n.isr)) ? String(num(n.isr)) : 'otro';
     A.pagoRet(fm, 'neto');
   } else A.pagoRet(fm);
 };
@@ -2275,7 +2275,7 @@ function renderForm(v = $('#view')) {
             <div class="small" style="font-weight:600;margin-bottom:6px">Neto a pagar por el cliente <span class="muted" style="font-weight:400">· uso interno, no va a la DGII</span></div>
             <div style="display:flex;gap:6px">
               <select class="in" title="ITBIS que te retendrá el cliente" onchange="A.dNeto('itbis',+this.value)">${[[0, 'Sin ret. ITBIS'], [30, 'ITBIS 30%'], [100, 'ITBIS 100%']].map(([v, l]) => `<option value="${v}" ${num(d.neto?.itbis) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-              <select class="in" title="ISR que te retendrá el cliente" onchange="A.dNeto('isr',+this.value)">${[[0, 'Sin ret. ISR'], [2, 'ISR 2%'], [5, 'ISR 5%'], [10, 'ISR 10%']].map(([v, l]) => `<option value="${v}" ${num(d.neto?.isr) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+              <select class="in" title="ISR que te retendrá el cliente" onchange="A.dNeto('isr',+this.value)">${[[0, 'Sin ret. ISR'], [15, 'ISR 15%'], [10, 'ISR 10%'], [5, 'ISR 5%'], [2, 'ISR 2%']].map(([v, l]) => `<option value="${v}" ${num(d.neto?.isr) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
             </div><div id="neto-form" class="small" style="margin-top:6px"></div></div>`}
           ${!d._edit && !isRef ? `<label class="check"><input type="checkbox" ${d.pagarAhora ? 'checked' : ''} onchange="A.df('pagarAhora',this.checked,true)"> Registrar pago completo ahora</label>
             ${d.pagarAhora ? `<div class="field"><label>Método de pago</label><select class="in" onchange="A.df('metodoPago',this.value)">${METODOS.map(m => `<option ${d.metodoPago === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>` : ''}` : ''}
