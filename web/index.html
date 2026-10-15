@@ -374,7 +374,7 @@ const MOTIVOS_ANULACION = {
 const ESTADOS = {
   emitida: ['Emitida', 'blue'], pagada: ['Pagada', 'green'], parcial: ['Pago parcial', 'amber'],
   vencida: ['Vencida', 'red'], anulada: ['Anulada', 'gray'], nota: ['Nota de crédito', 'purple'],
-  egreso: ['Compra / gasto', 'purple'],
+  egreso: ['Compra / gasto', 'purple'], borrador: ['Borrador', 'gray'],
 };
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
@@ -597,14 +597,16 @@ function calc(f) {
 const retPago = p => r2(num(p.retItbis) + num(p.retIsr));
 const pagado = f => r2((f.pagos || []).reduce((s, p) => s + num(p.monto) + retPago(p), 0));
 const retenidoCliente = f => (f.pagos || []).reduce((a, p) => ({ itbis: r2(a.itbis + num(p.retItbis)), isr: r2(a.isr + num(p.retIsr)) }), { itbis: 0, isr: 0 });
-const notasDe = f => DB.facturas.filter(n => esNota(n.tipo) && n.facturaAfectadaId === f.id && n.estado !== 'anulada');
+const esBorrador = f => f.estado === 'borrador';
+const notasDe = f => DB.facturas.filter(n => esNota(n.tipo) && n.facturaAfectadaId === f.id && n.estado !== 'anulada' && !esBorrador(n));
 const totalNotas = f => r2(notasDe(f).reduce((s, n) => s + calc(n).total, 0));
 function saldo(f) {
-  if (f.estado === 'anulada' || esNota(f.tipo) || esEgreso(f.tipo)) return 0;
+  if (f.estado === 'anulada' || esBorrador(f) || esNota(f.tipo) || esEgreso(f.tipo)) return 0;
   return Math.max(0, r2(calc(f).total - pagado(f) - totalNotas(f)));
 }
 function estado(f) {
   if (f.estado === 'anulada') return 'anulada';
+  if (esBorrador(f)) return 'borrador';
   if (esNota(f.tipo)) return 'nota';
   if (esEgreso(f.tipo)) return 'egreso';
   if (saldo(f) <= 0.004) return 'pagada';
@@ -615,7 +617,8 @@ function estado(f) {
 const pill = st => `<span class="pill ${ESTADOS[st][1]}">${ESTADOS[st][0]}</span>`;
 // Notas de crédito restan; compras y gastos (E41/E43/E47) no cuentan como ventas.
 const signo = f => esEgreso(f.tipo) ? 0 : esNota(f.tipo) ? -1 : 1;
-const vigente = f => f.estado !== 'anulada';
+// Los borradores no son comprobantes: no cuentan en reportes, dashboard ni cuentas por cobrar
+const vigente = f => f.estado !== 'anulada' && f.estado !== 'borrador';
 
 function seqInfo(e, tipo) {
   const s = e.secuencias && e.secuencias[tipo];
@@ -1028,14 +1031,14 @@ function barChart(serie) {
    ========================================================= */
 const LF = { q: '', tipo: 'ventas', estado: '', desde: '', hasta: '', limit: 50 };
 function rowFactura(f) {
-  const t = calc(f), c = f.cliente || {};
-  return `<tr class="click" onclick="location.hash='#/facturas/${f.id}'">
-    <td class="mono nowrap"><a href="#/facturas/${f.id}">${esc(f.numero)}</a></td>
-    <td class="mono small hide-sm">${f.ncf ? esc(f.ncf) : '<span class="muted">—</span>'}</td>
+  const t = calc(f), c = f.cliente || {}, url = `#/facturas/${f.id}${esBorrador(f) ? '/editar' : ''}`;
+  return `<tr class="click" onclick="location.hash='${url}'">
+    <td class="mono nowrap"><a href="${url}">${esBorrador(f) ? '<i>Borrador</i>' : esc(f.numero)}</a></td>
+    <td class="mono small hide-sm">${f.ncf ? esc(f.ncf) : esBorrador(f) ? `<span class="muted">${esc(f.tipo === TIPO_NONE ? '—' : f.tipo + ' (al emitir)')}</span>` : '<span class="muted">—</span>'}</td>
     <td>${esc(c.nombre || 'Consumidor Final')}${c.rnc ? `<span class="sub">RNC: ${esc(fmtId(c.rnc))}</span>` : ''}</td>
     <td class="nowrap hide-sm">${fdate(f.fecha)}</td>
     <td class="right nowrap">${esNota(f.tipo) ? '-' : ''}${money(t.total)}</td>
-    <td>${pill(estado(f))}${esECF(f.tipo) ? `<span class="sub" style="${['Aceptado', 'Aceptado Condicional'].includes(f.ecf?.estado) ? '' : 'color:var(--red)'}">DGII: ${esc(f.ecf?.estado || 'sin enviar')}</span>` : ''}</td></tr>`;
+    <td>${pill(estado(f))}${esECF(f.tipo) && !esBorrador(f) ? `<span class="sub" style="${['Aceptado', 'Aceptado Condicional'].includes(f.ecf?.estado) ? '' : 'color:var(--red)'}">DGII: ${esc(f.ecf?.estado || 'sin enviar')}</span>` : ''}</td></tr>`;
 }
 function viewFacturas(v) {
   const e = emp();
@@ -1099,6 +1102,7 @@ function fillFacturas() {
 function viewFactura(v, id) {
   const f = getF(id);
   if (!f || f.empresaId !== DB.activeId) { v.innerHTML = `<div class="empty">Factura no encontrada. <a href="#/facturas">Volver</a></div>`; return; }
+  if (esBorrador(f)) { location.hash = `#/facturas/${id}/editar`; return; }
   const e = emp(), t = calc(f), st = estado(f), c = f.cliente || {};
   const notas = notasDe(f), sal = saldo(f), pag = pagado(f);
   const afectada = f.facturaAfectadaId ? getF(f.facturaAfectadaId) : null;
@@ -1159,6 +1163,10 @@ function viewFactura(v, id) {
       ${t.propina ? `<div class="row"><span class="muted">Propina legal (10%)</span><span>${money(t.propina)}</span></div>` : ''}
       <div class="row big"><span>Total</span><span>${money(t.total)}</span></div>
       ${(() => { const r = retenciones(f); return r ? `${f.tipo === 'E41' ? `<div class="row"><span class="muted">ITBIS retenido (${r.pctItbis}%)</span><span>-${money(r.itbis)}</span></div>` : ''}<div class="row"><span class="muted">ISR retenido (${r.pctIsr}%)</span><span>-${money(r.isr)}</span></div><div class="row"><span>Neto pagado al proveedor</span><span>${money(t.total - r.itbis - r.isr)}</span></div>` : ''; })()}
+      ${(() => { const n = netoCliente(f); return n ? `<div style="border:1px dashed var(--border2);border-radius:8px;padding:6px 8px;margin:6px 0">
+        ${n.itbis ? `<div class="row small"><span class="muted">ITBIS que retendrá el cliente (${n.pctItbis}%)</span><span>-${money(n.itbis)}</span></div>` : ''}
+        ${n.isr ? `<div class="row small"><span class="muted">ISR que retendrá el cliente (${n.pctIsr}%)</span><span>-${money(n.isr)}</span></div>` : ''}
+        <div class="row"><span><b>Neto a pagar</b> <span class="muted small">(interno)</span></span><span><b>${money(n.neto)}</b></span></div></div>` : ''; })()}
       ${!esNota(f.tipo) && f.estado !== 'anulada' ? `
         ${notas.length ? `<div class="row"><span class="muted">Notas de crédito</span><span>-${money(totalNotas(f))}</span></div>` : ''}
         ${(() => { const rc = retenidoCliente(f); return `${rc.itbis ? `<div class="row"><span class="muted">ITBIS retenido por el cliente</span><span>-${money(rc.itbis)}</span></div>` : ''}${rc.isr ? `<div class="row"><span class="muted">ISR retenido por el cliente</span><span>-${money(rc.isr)}</span></div>` : ''}
@@ -1237,7 +1245,13 @@ A.registrarPago = id => {
       toast('Pago registrado', 'ok'); route(true);
     }
   });
-  A.pagoRet($('#modal-root form'));
+  // Si la factura tiene "neto a pagar", se proponen esas mismas retenciones
+  const fm = $('#modal-root form'), n = f.neto;
+  if (n && !prev.itbis && !prev.isr) {
+    if (num(n.itbis) && !fm.elements.pctItbis.disabled) fm.elements.pctItbis.value = String(num(n.itbis));
+    if (num(n.isr)) fm.elements.pctIsr.value = [2, 5, 10].includes(num(n.isr)) ? String(num(n.isr)) : 'otro';
+    A.pagoRet(fm, 'neto');
+  } else A.pagoRet(fm);
 };
 let PAGO_CTX = {};
 // Recalcula retenciones (según el % elegido) y el monto recibido = saldo − retenciones
@@ -2142,7 +2156,10 @@ function viewFacturaForm(v, opts) {
   if (opts.editId) {
     const f = getF(opts.editId);
     if (!f || f.empresaId !== e.id) { location.hash = '#/facturas'; return; }
-    draft = clone(f); draft._edit = true;
+    draft = clone(f);
+    // Un borrador se edita como una factura nueva (aún no tiene NCF); se recuerda su id para reemplazarlo al emitir
+    if (esBorrador(f)) { draft._borradorId = f.id; if (!draft.items.length) draft.items.push(blankItem()); }
+    else draft._edit = true;
   } else {
     draft = {
       tipo: e.tipoPredeterminado || 'B02', clienteId: '', fecha: today(), condicion: e.condicionPredeterminada || 'contado',
@@ -2171,7 +2188,7 @@ function renderForm(v = $('#view')) {
   const e = emp(), d = draft, isNota = esNota(d.tipo), isRef = esRef(d.tipo), egreso = esEgreso(d.tipo);
   if (d.tipo === 'E41' && !d.retencion) d.retencion = { itbis: 100, isr: 10 };
   if (d.tipo === 'E47' && !d.retencion) d.retencion = { itbis: 0, isr: 27 };
-  const titulo = d._edit ? `Editar ${d.numero}` : isNota ? 'Nueva nota de crédito' : d.tipo === 'E33' ? 'Nueva nota de débito' : egreso ? 'Nuevo comprobante de compra o gasto' : 'Nueva factura';
+  const titulo = d._edit ? `Editar ${d.numero}` : d._borradorId ? 'Borrador de factura' : isNota ? 'Nueva nota de crédito' : d.tipo === 'E33' ? 'Nueva nota de débito' : egreso ? 'Nuevo comprobante de compra o gasto' : 'Nueva factura';
   crumbs([e.nombre, '#/dashboard'], ['Facturas', '#/facturas'], [titulo]);
   // Los tipos electrónicos solo aparecen si la empresa tiene su secuencia e-NCF activa.
   const tiposDisp = isRef ? [d.tipo] : [...TIPOS_FACTURA.filter(t => !esECF(t) || seqInfo(e, t) || t === d.tipo), TIPO_NONE];
@@ -2254,9 +2271,18 @@ function renderForm(v = $('#view')) {
         <div id="form-totals"></div>
         <div class="card-b" style="border-top:1px solid var(--border);display:flex;flex-direction:column;gap:12px">
           <label class="check"><input type="checkbox" ${d.propina ? 'checked' : ''} onchange="A.df('propina',this.checked);A.refreshTotals()"> Propina legal (10%)</label>
+          ${isRef || egreso ? '' : `<div style="border:1px dashed var(--border2);border-radius:10px;padding:10px">
+            <div class="small" style="font-weight:600;margin-bottom:6px">Neto a pagar por el cliente <span class="muted" style="font-weight:400">· uso interno, no va a la DGII</span></div>
+            <div style="display:flex;gap:6px">
+              <select class="in" title="ITBIS que te retendrá el cliente" onchange="A.dNeto('itbis',+this.value)">${[[0, 'Sin ret. ITBIS'], [30, 'ITBIS 30%'], [100, 'ITBIS 100%']].map(([v, l]) => `<option value="${v}" ${num(d.neto?.itbis) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+              <select class="in" title="ISR que te retendrá el cliente" onchange="A.dNeto('isr',+this.value)">${[[0, 'Sin ret. ISR'], [2, 'ISR 2%'], [5, 'ISR 5%'], [10, 'ISR 10%']].map(([v, l]) => `<option value="${v}" ${num(d.neto?.isr) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+            </div><div id="neto-form" class="small" style="margin-top:6px"></div></div>`}
           ${!d._edit && !isRef ? `<label class="check"><input type="checkbox" ${d.pagarAhora ? 'checked' : ''} onchange="A.df('pagarAhora',this.checked,true)"> Registrar pago completo ahora</label>
             ${d.pagarAhora ? `<div class="field"><label>Método de pago</label><select class="in" onchange="A.df('metodoPago',this.value)">${METODOS.map(m => `<option ${d.metodoPago === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>` : ''}` : ''}
           <button class="btn primary" style="padding:12px" onclick="A.guardarFactura()">${d._edit ? 'Guardar cambios' : isNota ? 'Emitir nota de crédito' : d.tipo === 'E33' ? 'Emitir nota de débito' : egreso ? 'Emitir comprobante' : 'Emitir factura'}</button>
+          ${d._edit ? '' : `<button class="btn" onclick="A.guardarFactura(true)">${icon('edit')} ${d._borradorId ? 'Actualizar borrador' : 'Guardar como borrador'}</button>`}
+          ${d._borradorId ? `<button class="btn danger" onclick="A.borrarBorrador('${d._borradorId}')">${icon('trash')} Descartar borrador</button>` : ''}
+          ${d._edit ? '' : `<div class="hint small muted" style="text-align:center">El borrador no usa NCF ni se envía a la DGII hasta que lo emitas.</div>`}
           <a class="btn" href="${d._edit ? '#/facturas/' + d.id : '#/facturas'}">Cancelar</a>
         </div>
       </div>
@@ -2311,6 +2337,7 @@ A.notaAfecta = id => {
   renderForm();
 };
 A.dRet = (k, val) => { draft.retencion = { ...(draft.retencion || {}), [k]: val }; A.refreshTotals(); };
+A.dNeto = (k, val) => { draft.neto = { ...(draft.neto || {}), [k]: val }; A.refreshTotals(); };
 // Retenciones de ITBIS/ISR de las facturas de compras (E41) y pagos al exterior (E47)
 function retenciones(f) {
   if (!['E41', 'E47'].includes(f.tipo)) return null;
@@ -2325,6 +2352,8 @@ function retenciones(f) {
 }
 A.refreshTotals = () => {
   const t = calc(draft), el = $('#form-totals'); if (!el) return;
+  const nf = $('#neto-form');
+  if (nf) { const n = netoCliente(draft); nf.innerHTML = n ? `Retenciones ${money(r2(n.itbis + n.isr))} → <b>Neto a pagar ${money(n.neto)}</b>` : '<span class="muted">El cliente paga el total.</span>'; }
   let extra = '';
   if (esNota(draft.tipo) && draft.facturaAfectadaId) {
     const o = getF(draft.facturaAfectadaId);
@@ -2341,15 +2370,30 @@ A.refreshTotals = () => {
       <div class="row small"><span class="muted">ISR retenido (${r.pctIsr}%)</span><span>-${money(r.isr)}</span></div>
       <div class="row"><span>Neto a pagar</span><span>${money(t.total - r.itbis - r.isr)}</span></div>` : ''; })()}</div>`;
 };
-A.guardarFactura = async () => {
+A.guardarFactura = async comoBorrador => {
   const e = emp(), d = draft;
   const items = d.items.filter(it => String(it.descripcion).trim() && num(it.cantidad) > 0)
     .map(it => ({ productoId: it.productoId || '', sku: it.sku || '', descripcion: String(it.descripcion).trim(), cantidad: r2(num(it.cantidad)), precio: r2(num(it.precio)), descuento: Math.min(100, Math.max(0, num(it.descuento))), itbis: num(it.itbis), tipo: it.tipo || (getP(it.productoId)?.tipo) || 'bien' }));
   if (!items.length) return toast('Agrega al menos un ítem con descripción y cantidad.', 'error');
   if (items.some(it => it.precio < 0)) return toast('Los precios no pueden ser negativos.', 'error');
-  if (!d._edit) { const b = bloqueoNCF(emp(), d.tipo); if (b) return toast(b, 'error'); }
   const cli = d.tipo === 'E43' ? null : d.clienteId ? getC(d.clienteId) : null;
   const parte = esEgreso(d.tipo) ? 'proveedor' : 'cliente';
+  const campos = {
+    clienteId: cli ? cli.id : '',
+    cliente: cli ? { nombre: cli.nombre, rnc: cli.rnc, idExtranjero: cli.idExtranjero || '', direccion: cli.direccion, telefono: cli.telefono, email: cli.email }
+      : { nombre: d.tipo === 'E43' ? '' : 'Consumidor Final' },
+    fecha: d.fecha || today(),
+    condicion: esRef(d.tipo) || esEgreso(d.tipo) ? 'contado' : d.condicion,
+    diasCredito: d.condicion === 'credito' && !esRef(d.tipo) && !esEgreso(d.tipo) ? num(d.diasCredito) : 0,
+    vencimiento: !esRef(d.tipo) && !esEgreso(d.tipo) && d.condicion === 'credito' ? addDays(d.fecha || today(), d.diasCredito) : '',
+    items, propina: !!d.propina, notas: d.notas || '',
+    facturaAfectadaId: esRef(d.tipo) ? d.facturaAfectadaId : '',
+    retencion: ['E41', 'E47'].includes(d.tipo) ? { itbis: d.tipo === 'E41' ? num(d.retencion?.itbis) : 0, isr: num(d.retencion?.isr) } : undefined,
+    // Neto que debe pagar el cliente tras sus retenciones: solo uso interno (no va en el XML de la DGII)
+    neto: !esRef(d.tipo) && !esEgreso(d.tipo) && (num(d.neto?.itbis) || num(d.neto?.isr)) ? { itbis: num(d.neto.itbis), isr: num(d.neto.isr) } : undefined,
+  };
+  if (comoBorrador) return guardarBorrador(d, campos);
+  if (!d._edit) { const b = bloqueoNCF(emp(), d.tipo); if (b) return toast(b, 'error'); }
   if (NCF_TIPOS[d.tipo]?.requiereRNC && !(cli && validId(cli.rnc)))
     return toast(`El comprobante ${d.tipo} requiere un ${parte} con RNC (9 dígitos) o cédula (11 dígitos).`, 'error');
   if (['E46', 'E47'].includes(d.tipo) && !(cli && (validId(cli.rnc) || cli.idExtranjero)))
@@ -2372,18 +2416,6 @@ A.guardarFactura = async () => {
     if (total > disponible + 0.004) return toast(`La nota de crédito no puede exceder ${money(disponible)} (total de la factura menos otras notas).`, 'error');
   }
   if (A._saving) return;
-  const campos = {
-    clienteId: cli ? cli.id : '',
-    cliente: cli ? { nombre: cli.nombre, rnc: cli.rnc, idExtranjero: cli.idExtranjero || '', direccion: cli.direccion, telefono: cli.telefono, email: cli.email }
-      : { nombre: d.tipo === 'E43' ? '' : 'Consumidor Final' },
-    fecha: d.fecha || today(),
-    condicion: esRef(d.tipo) || esEgreso(d.tipo) ? 'contado' : d.condicion,
-    diasCredito: d.condicion === 'credito' && !esRef(d.tipo) && !esEgreso(d.tipo) ? num(d.diasCredito) : 0,
-    vencimiento: !esRef(d.tipo) && !esEgreso(d.tipo) && d.condicion === 'credito' ? addDays(d.fecha || today(), d.diasCredito) : '',
-    items, propina: !!d.propina, notas: d.notas || '',
-    facturaAfectadaId: esRef(d.tipo) ? d.facturaAfectadaId : '',
-    retencion: ['E41', 'E47'].includes(d.tipo) ? { itbis: d.tipo === 'E41' ? num(d.retencion?.itbis) : 0, isr: num(d.retencion?.isr) } : undefined,
-  };
   A._saving = true; busy(true, d._edit ? 'Guardando…' : 'Emitiendo comprobante…');
   try {
     let f;
@@ -2399,6 +2431,11 @@ A.guardarFactura = async () => {
       f = fromFacturaRow(row);
       putCache('facturas', f);
       reloadEmpresa(e.id).catch(() => { });
+      // El borrador ya se convirtió en comprobante: se elimina
+      if (d._borradorId) {
+        try { chk(await sb.from('facturas').delete().eq('id', d._borradorId)); } catch (err) { console.warn('No se pudo borrar el borrador', err); }
+        DB.facturas = DB.facturas.filter(x => x.id !== d._borradorId);
+      }
     }
     toast(d._edit ? 'Cambios guardados' : `${f.numero} emitida${f.ncf ? ' · NCF ' + f.ncf : ''}`, 'ok');
     draft = null;
@@ -2407,6 +2444,38 @@ A.guardarFactura = async () => {
   } catch (err) { console.error(err); toast(errMsg(err), 'error'); }
   finally { A._saving = false; busy(false); }
 };
+
+// Borrador: se guarda en facturas sin NCF ni número fiscal; no cuenta en reportes ni se envía a la DGII
+async function guardarBorrador(d, campos) {
+  if (A._saving) return;
+  A._saving = true; busy(true, 'Guardando borrador…');
+  try {
+    const data = { ...campos, estado: 'borrador', pagos: [], pagarAhora: !!d.pagarAhora, metodoPago: d.metodoPago || 'Efectivo',
+      creada: d.creada || new Date().toISOString(), creadaPor: d.creadaPor || SESSION.user.email, editada: new Date().toISOString() };
+    let row;
+    if (d._borradorId) row = chk(await sb.from('facturas').update({ tipo: d.tipo, fecha: data.fecha, data }).eq('id', d._borradorId).select().single());
+    else {
+      const numero = 'BORRADOR-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
+      row = chk(await sb.from('facturas').insert({ empresa_id: DB.activeId, numero, tipo: d.tipo, ncf: null, fecha: data.fecha, data: { ...data, numero, tipo: d.tipo, ncf: '' } }).select().single());
+    }
+    putCache('facturas', fromFacturaRow(row));
+    toast('Borrador guardado. Lo encuentras en Facturas.', 'ok');
+    draft = null; location.hash = '#/facturas';
+  } catch (err) {
+    console.error(err);
+    toast(/row-level security|policy/i.test(err.message || '') ? 'Falta ejecutar supabase/ecf7.sql en Supabase para guardar borradores.' : errMsg(err), 'error');
+  } finally { A._saving = false; busy(false); }
+}
+A.borrarBorrador = id => confirmar('Descartar borrador', '¿Eliminar este borrador? No afecta tus secuencias NCF.', async () => {
+  try { chk(await sb.from('facturas').delete().eq('id', id)); DB.facturas = DB.facturas.filter(f => f.id !== id); draft = null; toast('Borrador eliminado', 'ok'); location.hash = '#/facturas'; }
+  catch (err) { toast(errMsg(err), 'error'); }
+}, { okText: 'Eliminar' });
+// Neto que el cliente debe pagar después de las retenciones que te hará (dato interno; no va en el e-CF)
+function netoCliente(f) {
+  const n = f.neto; if (!n || !(num(n.itbis) || num(n.isr)) || esRef(f.tipo) || esEgreso(f.tipo)) return null;
+  const t = calc(f), itbis = r2(t.itbis * num(n.itbis) / 100), isr = r2(t.base * num(n.isr) / 100);
+  return { pctItbis: num(n.itbis), pctIsr: num(n.isr), itbis, isr, neto: r2(t.total - itbis - isr) };
+}
 
 /* =========================================================
    COMPRAS Y GASTOS (comprobantes recibidos de proveedores · formato 606)
@@ -2853,7 +2922,7 @@ A.borrarCliente = id => {
 };
 A.estadoCuenta = id => {
   const c = getC(id);
-  const fs = facturas().filter(f => f.clienteId === id).sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const fs = facturas().filter(f => f.clienteId === id && !esBorrador(f)).sort((a, b) => b.fecha.localeCompare(a.fecha));
   const bal = r2(fs.filter(f => !esNota(f.tipo)).reduce((s, f) => s + saldo(f), 0));
   const tot = r2(fs.filter(vigente).reduce((s, f) => s + signo(f) * calc(f).total, 0));
   modal(`Estado de cuenta · ${esc(c.nombre)}`, `
@@ -3583,6 +3652,7 @@ function cartaHTML(f) {
     ${t.propina ? `<div><span>Propina legal 10%</span><span>${money(t.propina)}</span></div>` : ''}
     <div class="t"><span>TOTAL</span><span>${money(t.total)}</span></div>
     ${(() => { const r = retenciones(f); return r ? `${f.tipo === 'E41' ? `<div><span>ITBIS retenido (${r.pctItbis}%)</span><span>${money(r.itbis)}</span></div>` : ''}<div><span>ISR retenido (${r.pctIsr}%)</span><span>${money(r.isr)}</span></div><div><b>Neto a pagar</b><b>${money(t.total - r.itbis - r.isr)}</b></div>` : ''; })()}
+    ${(() => { const n = netoCliente(f); return n ? `${n.itbis ? `<div><span>ITBIS retenido (${n.pctItbis}%)</span><span>-${money(n.itbis)}</span></div>` : ''}${n.isr ? `<div><span>ISR retenido (${n.pctIsr}%)</span><span>-${money(n.isr)}</span></div>` : ''}<div><b>Neto a pagar</b><b>${money(n.neto)}</b></div>` : ''; })()}
     ${!esNota(f.tipo) && !esEgreso(f.tipo) && f.estado !== 'anulada' && f.condicion === 'credito' ? `<div><span>Pagado</span><span>${money(pagado(f) + totalNotas(f))}</span></div><div><b>Balance</b><b>${money(sal)}</b></div>` : ''}
   </div>
   ${f.notas ? `<div class="p-notes">${esc(f.notas)}</div>` : ''}
@@ -3614,6 +3684,7 @@ function ticketHTML(f) {
   <div class="tk-row"><span>ITBIS</span><span>${money(t.itbis)}</span></div>
   ${t.propina ? `<div class="tk-row"><span>Propina 10%</span><span>${money(t.propina)}</span></div>` : ''}
   <div class="tk-row" style="font-weight:700;font-size:13px"><span>TOTAL</span><span>${money(t.total)}</span></div>
+  ${(() => { const n = netoCliente(f); return n ? `${n.itbis ? `<div class="tk-row"><span>ITBIS retenido ${n.pctItbis}%</span><span>-${money(n.itbis)}</span></div>` : ''}${n.isr ? `<div class="tk-row"><span>ISR retenido ${n.pctIsr}%</span><span>-${money(n.isr)}</span></div>` : ''}<div class="tk-row" style="font-weight:700"><span>NETO A PAGAR</span><span>${money(n.neto)}</span></div>` : ''; })()}
   ${(f.pagos || []).map(p => `<div class="tk-row"><span>${esc(p.metodo)}</span><span>${money(p.monto)}</span></div>`).join('')}
   <div class="tk-line"></div>
   ${f.notas ? `<div class="tk" style="white-space:pre-wrap">${esc(f.notas)}</div>` : ''}
