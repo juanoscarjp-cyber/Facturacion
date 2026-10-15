@@ -312,11 +312,6 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
 /* ---------- Supabase ---------- */
 const SUPABASE_URL = 'https://gwvqpnmwqvqrmsbpwmhj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_JG_uubMg9brkjoIz7x-Xmw_uCyvz3F6'; // clave pública (publishable); la seguridad la dan las políticas RLS
-// Se lee antes de crear el cliente, porque Supabase borra el #access_token=…&type=invite de la URL al procesarlo.
-let LLEGO_INVITADO = /[#&]type=invite\b/.test(location.hash);
-const ERROR_ENLACE = /[#&]error_code=otp_expired\b/.test(location.hash) ? 'El enlace del correo venció o ya se usó. Pide al administrador que te invite de nuevo.'
-  : /[#&]error=/.test(location.hash) ? 'No se pudo abrir el enlace del correo. Pide uno nuevo.' : '';
-if (ERROR_ENLACE) history.replaceState(null, '', location.pathname + location.search);
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let SESSION = null;
 let BOOTING = true;
@@ -754,19 +749,6 @@ function pedirNuevaPassword() {
       const p = form.elements.password.value;
       if (p.length < 6) { toast('Mínimo 6 caracteres.', 'error'); return false; }
       chk(await sb.auth.updateUser({ password: p })); toast('Contraseña actualizada', 'ok');
-    }
-  });
-}
-// Primera entrada desde el correo de invitación: la cuenta existe pero aún no tiene contraseña.
-function pedirPasswordInvitado() {
-  modal('Bienvenido', `<p style="margin-top:0">Te invitaron a usar la app con <b>${esc(SESSION?.user?.email || '')}</b>. Crea tu contraseña para poder entrar la próxima vez.</p>
-    <div class="field"><label>Contraseña</label><input class="in" name="password" type="password" minlength="6" autocomplete="new-password" required></div>
-    <div class="field"><label>Repite la contraseña</label><input class="in" name="password2" type="password" minlength="6" autocomplete="new-password" required></div>`, {
-    okText: 'Guardar contraseña', cancelText: 'Más tarde', onOk: async form => {
-      const p = form.elements.password.value;
-      if (p.length < 6) { toast('La contraseña debe tener al menos 6 caracteres.', 'error'); return false; }
-      if (p !== form.elements.password2.value) { toast('Las contraseñas no coinciden.', 'error'); return false; }
-      chk(await sb.auth.updateUser({ password: p })); toast('Contraseña guardada. Ya puedes entrar con tu email y esta contraseña.', 'ok');
     }
   });
 }
@@ -1668,12 +1650,9 @@ A.simTodo = async () => {
   toast(fallos ? `${fallos} con error o rechazo. Revisa el detalle.` : 'Simulación completa: todos aceptados.', fallos ? 'error' : 'ok');
 };
 // RNC con el que se hizo la postulación: el que trae el set de pruebas del Paso 2 (cargado en cualquier empresa)
+// RNC del set de pruebas cargado en ESTA empresa (cada empresa lleva su propio proceso de certificación)
 function rncCertificacion() {
-  for (const k of Object.keys(localStorage)) {
-    if (!k.startsWith('cert_set_')) continue;
-    try { const s = JSON.parse(localStorage.getItem(k)); const r = s?.ECF?.[0]?.RNCEmisor; if (r) return digits(r); } catch (e) { }
-  }
-  return '';
+  try { const s = JSON.parse(localStorage.getItem(certKey()) || 'null'); return digits(s?.ECF?.[0]?.RNCEmisor || ''); } catch (e) { return ''; }
 }
 A.simAnularRechazados = () => {
   const C = certCargar(), sim = C.sim || {};
@@ -2688,13 +2667,13 @@ A.equipo = async eid => {
     ${admin ? `<div class="section-title">Invitar a un usuario</div>
     <div class="fgrid"><div class="field"><label>Email</label><input class="in" name="email" type="email" placeholder="empleado@correo.com"></div>
       <div class="field"><label>Rol</label><select class="in" name="rol"><option value="usuario">Usuario (factura y cobra)</option><option value="admin">Administrador (también configura la empresa y el equipo)</option></select></div></div>
-    <p class="small muted">Le llegará un correo con un enlace para crear su contraseña. Si ya tiene cuenta, el enlace lo hace entrar. Al entrar verá esta empresa automáticamente.</p>` : ''}`,
+    <p class="small muted">La persona debe crear su cuenta (o iniciar sesión) con ese mismo email y confirmarlo. Al entrar, verá esta empresa automáticamente.</p>` : ''}`,
     admin ? { okText: 'Enviar invitación', cancelText: 'Cerrar', wide: true, onOk: async form => {
       const email = fv(form, 'email').toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('Escribe un email válido.', 'error'); return false; }
       if (miembros.some(m => (m.email || '').toLowerCase() === email)) { toast('Esa persona ya es miembro.', 'error'); return false; }
-      const d = await apiInvitar({ empresaId: eid, email, rol: fv(form, 'rol') });
-      toast(d.existente ? `${email} ya tenía cuenta: le enviamos un enlace para entrar.` : `Invitación enviada a ${email}.`, 'ok'); A.equipo(eid);
+      chk(await sb.from('invitaciones').upsert({ empresa_id: eid, email, rol: fv(form, 'rol') }));
+      toast('Invitación registrada', 'ok'); A.equipo(eid);
     } } : { wide: true, cancelText: 'Cerrar' });
 };
 A.cambiarRol = async (eid, uidv, rol) => {
@@ -2709,17 +2688,6 @@ A.quitarMiembro = (eid, uidv) => {
     else A.equipo(eid);
   }, { okText: self ? 'Salir' : 'Quitar' });
 };
-async function apiInvitar(body) {
-  const { data } = await sb.auth.getSession();
-  let r;
-  try {
-    r = await fetch('/api/invitar', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + (data.session?.access_token || '') }, body: JSON.stringify(body) });
-  } catch (e) { throw new Error('Sin conexión con el servidor.'); }
-  if (!(r.headers.get('content-type') || '').includes('json')) throw new Error('Las invitaciones por correo solo funcionan en la app publicada.');
-  const d = await r.json();
-  if (!d.ok) throw new Error(d.error || 'Error desconocido');
-  return d;
-}
 A.cancelarInvitacion = async (eid, email) => {
   try { chk(await sb.from('invitaciones').delete().eq('empresa_id', eid).eq('email', email)); A.equipo(eid); }
   catch (err) { toast(errMsg(err), 'error'); }
@@ -3038,8 +3006,7 @@ async function boot(session) {
 let bootedFor = null;
 sb.auth.onAuthStateChange((event, session) => {
   if (event === 'PASSWORD_RECOVERY') setTimeout(pedirNuevaPassword, 300);
-  if (LLEGO_INVITADO && session) { LLEGO_INVITADO = false; setTimeout(pedirPasswordInvitado, 600); }
-  if (event === 'INITIAL_SESSION' && !session) { BOOTING = false; route(); if (ERROR_ENLACE) toast(ERROR_ENLACE, 'error'); return; }
+  if (event === 'INITIAL_SESSION' && !session) { BOOTING = false; route(); return; }
   const prev = SESSION?.user?.id, next = session?.user?.id;
   if (next && next !== bootedFor) { bootedFor = next; setTimeout(() => boot(session), 0); return; }
   if (!next && prev) {

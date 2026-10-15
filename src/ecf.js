@@ -180,9 +180,13 @@ const vacioSet = v => v === undefined || v === null || String(v).trim() === '' |
 export function construirDesdeFila(esqueleto, fila) {
   const valores = new Map();
   for (const [k, v] of Object.entries(fila || {})) if (!vacioSet(v)) valores.set(k.trim().toLowerCase(), String(v).trim());
+  // Nombres que la fila usa con N índices, p. ej. "tipoimpuesto|2" por TipoImpuesto[1][2]
+  const conIndices = new Set([...valores.keys()].map(k => { const m = /^([^\[]+)((?:\[\d+\])+)$/.exec(k); return m ? m[1] + '|' + (m[2].match(/\[/g) || []).length : ''; }));
   const leer = (nombre, idx) => {
     const claves = [nombre + idx.map(i => `[${i}]`).join('')];
-    if (idx.length && idx[idx.length - 1] === 1) claves.push(nombre + idx.slice(0, -1).map(i => `[${i}]`).join(''));
+    // Columna sin el último índice (p. ej. FormaPago en vez de FormaPago[1]) solo si el Excel no usa ese nombre con todos
+    // sus índices: así TipoImpuesto[2][1] (impuesto del ítem 2) no toma el valor de TipoImpuesto[2] (impuesto de los totales).
+    if (idx.length && idx[idx.length - 1] === 1 && !conIndices.has(nombre.toLowerCase() + '|' + idx.length)) claves.push(nombre + idx.slice(0, -1).map(i => `[${i}]`).join(''));
     for (const k of claves) { const v = valores.get(k.toLowerCase()); if (v !== undefined) return v; }
     return undefined;
   };

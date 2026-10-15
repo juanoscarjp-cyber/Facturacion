@@ -42,16 +42,6 @@ export default {
         return json({ mensaje: String(err && err.message || err) }, err && err.status || 400);
       }
     }
-    if (url.pathname === '/api/invitar') {
-      try {
-        if (request.method !== 'POST') return json({ ok: false, error: 'Método no permitido' }, 405);
-        const jwt = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
-        if (!jwt) return json({ ok: false, error: 'Debes iniciar sesión.' }, 401);
-        return json(await invitarUsuario(env, jwt, await request.json().catch(() => ({})), url.origin + '/'));
-      } catch (err) {
-        return json({ ok: false, error: String(err && err.message || err) }, 400);
-      }
-    }
     if (url.pathname.startsWith('/api/ecf/')) {
       try {
         if (request.method !== 'POST') return json({ ok: false, error: 'Método no permitido' }, 405);
@@ -214,49 +204,6 @@ async function feAprobacionComercial(env, request) {
     }
   } catch (e) { console.log('ACECF: no se pudo anotar en la factura', String(e.message || e)); }
   return json({ mensaje: 'Aprobación comercial recibida', estado: aprobacion.estado });
-}
-
-/* ---------------- Invitaciones al equipo ---------------- */
-
-// Llamada a Supabase Auth con la clave de servicio (invitar usuarios requiere permisos de administrador).
-async function authAdmin(env, path, body) {
-  const key = env.SUPABASE_SERVICE_KEY;
-  if (!key) throw new Error('Falta configurar el secreto SUPABASE_SERVICE_KEY en Cloudflare (Worker → Settings → Variables and Secrets).');
-  const auth = key.startsWith('eyJ') ? { authorization: `Bearer ${key}` } : {};
-  const r = await fetch(`${SB_URL}/auth/v1/${path}`, {
-    method: 'POST', body: JSON.stringify(body), headers: { apikey: key, ...auth, 'content-type': 'application/json' },
-  });
-  const t = await r.text();
-  let d; try { d = t ? JSON.parse(t) : null; } catch { d = t; }
-  return { ok: r.ok, status: r.status, data: d, error: (d && (d.msg || d.message || d.error_description || d.error)) || `Supabase HTTP ${r.status}` };
-}
-
-// Registra la invitación y envía el correo. Si el email ya tiene cuenta, le manda un enlace para entrar.
-async function invitarUsuario(env, jwt, { empresaId, email, rol }, redirectTo) {
-  email = String(email || '').trim().toLowerCase();
-  if (!empresaId) throw new Error('Falta la empresa.');
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Escribe un email válido.');
-  if (!['admin', 'usuario'].includes(rol)) throw new Error('Rol inválido.');
-  const ru = await fetch(`${SB_URL}/auth/v1/user`, { headers: { apikey: SB_KEY, authorization: `Bearer ${jwt}` } });
-  if (!ru.ok) throw new Error('Tu sesión venció. Vuelve a iniciar sesión.');
-  const yo = await ru.json();
-  if (!(await sb(jwt, 'rpc/es_admin', { method: 'POST', body: JSON.stringify({ e: empresaId }) }))) throw new Error('Solo el dueño o un administrador puede invitar.');
-
-  await sbAdmin(env, 'invitaciones?on_conflict=empresa_id,email', {
-    method: 'POST', body: JSON.stringify({ empresa_id: empresaId, email, rol, invitado_por: yo.id }),
-    headers: { prefer: 'resolution=merge-duplicates,return=minimal' },
-  });
-
-  const q = `?redirect_to=${encodeURIComponent(redirectTo)}`;
-  const inv = await authAdmin(env, 'invite' + q, { email });
-  if (inv.ok) return { ok: true, existente: false };
-  // Ya tiene cuenta: le enviamos un enlace de acceso; al entrar se une a la empresa.
-  if (inv.status === 422 || /already|registered|exists/i.test(inv.error)) {
-    const otp = await authAdmin(env, 'otp' + q, { email, create_user: false });
-    if (otp.ok) return { ok: true, existente: true };
-    throw new Error('Invitación guardada, pero no se pudo enviar el correo: ' + otp.error);
-  }
-  throw new Error('Invitación guardada, pero no se pudo enviar el correo: ' + inv.error);
 }
 
 /* ---------------- Facturación electrónica ---------------- */
