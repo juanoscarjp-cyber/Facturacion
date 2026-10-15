@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Facturación RD</title>
+<meta name="description" content="Facturación con NCF, ITBIS y comprobantes fiscales electrónicos (e-CF) de la DGII.">
+<meta name="theme-color" content="#1f1b4d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Facturación">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"></script>
 <style>
 :root{
@@ -650,9 +659,34 @@ function renderShell(section) {
     </div>`;
   $('#nav').innerHTML = NAV.map(([k, l, ic]) => `<a href="#/${k}" class="${k === section ? 'active' : ''}">${icon(ic)}${l}</a>`).join('');
   $('#avatar').textContent = initials(SESSION?.user?.email || '');
-  $('#side-foot').innerHTML = `${esc(SESSION?.user?.email || '')}<br>${e ? `Rol: ${{ dueno: 'Dueño', admin: 'Administrador', usuario: 'Usuario' }[e.rol] || e.rol} · ` : ''}<button class="linkish" style="font-size:11px" onclick="A.logout()">Cerrar sesión</button>`;
+  $('#side-foot').innerHTML = `${puedeInstalar() ? `<button type="button" class="btn sm" style="width:100%;margin-bottom:10px" onclick="A.instalarApp()">${icon('down')} Instalar app</button>` : ''}${esc(SESSION?.user?.email || '')}<br>${e ? `Rol: ${{ dueno: 'Dueño', admin: 'Administrador', usuario: 'Usuario' }[e.rol] || e.rol} · ` : ''}<button class="linkish" style="font-size:11px" onclick="A.logout()">Cerrar sesión</button>`;
   document.body.classList.remove('nav-open');
 }
+/* ---------- App instalable (PWA) ---------- */
+let installEvt = null;
+const enModoApp = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const puedeInstalar = () => !enModoApp() && (!!installEvt || esIOS());
+if ('serviceWorker' in navigator && /^https:|^http:\/\/localhost/.test(location.href))
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => { }));
+window.addEventListener('beforeinstallprompt', ev => {
+  ev.preventDefault(); installEvt = ev;
+  if (SESSION) renderShell(parseHash().parts[0]);
+});
+window.addEventListener('appinstalled', () => { installEvt = null; toast('App instalada. Búscala en tu escritorio o pantalla de inicio.', 'ok'); if (SESSION) renderShell(parseHash().parts[0]); });
+A.instalarApp = async () => {
+  if (installEvt) {
+    installEvt.prompt();
+    try { await installEvt.userChoice; } catch (e) { }
+    installEvt = null; renderShell(parseHash().parts[0]);
+    return;
+  }
+  modal('Instalar en iPhone / iPad', `<ol style="margin:0;padding-left:20px;line-height:1.9">
+    <li>Abre esta página en <b>Safari</b>.</li>
+    <li>Toca el botón <b>Compartir</b> (el cuadrado con la flecha hacia arriba).</li>
+    <li>Elige <b>"Agregar a pantalla de inicio"</b> y luego <b>Agregar</b>.</li></ol>`, { noFooter: true });
+};
+
 const EMP_COLORES = ['#1f1b4d', '#e11d48', '#0f766e', '#7c3aed', '#c2410c', '#1d4ed8', '#4d7c0f', '#be185d'];
 function empAvatar(x) {
   let h = 0; for (const ch of x.id || x.nombre || '') h = (h * 31 + ch.charCodeAt(0)) >>> 0;
