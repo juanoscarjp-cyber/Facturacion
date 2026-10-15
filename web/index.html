@@ -1746,7 +1746,8 @@ A.simXMLConsumo = () => {
 function simHTML() {
   const C = certCargar(), e = emp(), sim = C.sim || {};
   const okS = s => s && ['Aceptado', 'Aceptado Condicional'].includes(s.estado);
-  const faltan = SIM_TIPOS.filter(t => !seqInfo(e, t));
+  // Secuencias "preparadas": desde el 101 (las del 1 al 100 las usa el set del Paso 2) y vencimiento 31-12-2028 (si no, error 145)
+  const faltan = SIM_TIPOS.filter(t => { const s = seqInfo(e, t); return !s || num(s.actual) < 100 || (!SIN_VENCE.includes(t) && s.vence !== '2028-12-31'); });
   if (C._amb === undefined) {
     C._amb = null;
     sb.from('ecf_config').select('ambiente').eq('empresa_id', e.id).then(r => { C._amb = r.data?.[0]?.ambiente || ''; certGuardar(); if (parseHash().parts[0] === 'certificacion') route(true); });
@@ -1763,7 +1764,7 @@ function simHTML() {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       <span class="pill ${rncMal ? 'red' : 'green'}">RNC emisor: ${esc(fmtId(rncEmp) || '—')}</span>
       <span class="pill ${C._amb === 'certecf' ? 'green' : 'red'}">Ambiente: ${C._amb ? esc(AMBIENTES_ECF[C._amb] || C._amb) : 'sin configurar'}</span>
-      <span class="pill ${faltan.length ? 'red' : 'green'}">${faltan.length ? 'Faltan secuencias: ' + faltan.join(', ') : 'Secuencias e-NCF listas'}</span>
+      <span class="pill ${faltan.length ? 'red' : 'green'}">${faltan.length ? 'Secuencias sin preparar: ' + faltan.join(', ') : 'Secuencias e-NCF listas'}</span>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${!listo && !rncMal ? `<button class="btn" onclick="A.simPreparar()">Preparar ambiente y secuencias</button>` : ''}
