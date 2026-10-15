@@ -21,13 +21,30 @@ a{color:inherit;text-decoration:none}
 button,input,select,textarea{font:inherit;color:inherit}
 #app{display:flex;min-height:100vh}
 /* Sidebar */
-#sidebar{width:240px;flex:0 0 240px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+#sidebar{width:240px;flex:0 0 240px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:10}
 .brand{display:flex;align-items:center;gap:10px;padding:16px 16px 12px}
 .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:18px;flex:0 0 auto}
 .brand b{display:block;font-size:14px}.brand small{color:var(--muted);font-size:11px}
-.emp-switch{margin:0 12px 10px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--soft)}
-.emp-switch label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:2px}
-.emp-switch select{width:100%;border:0;background:transparent;font-weight:600;outline:none;cursor:pointer}
+.emp-switch{margin:0 12px 10px;position:relative}
+.emp-btn{width:100%;display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--soft);cursor:pointer;text-align:left}
+.emp-btn:hover,.emp-switch.open .emp-btn{border-color:var(--border2);background:#fff}
+.emp-btn .chev{width:16px;height:16px;color:var(--muted);flex:0 0 auto;transition:transform .15s}
+.emp-switch.open .emp-btn .chev{transform:rotate(180deg)}
+.emp-av{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:12px;color:#fff;flex:0 0 auto}
+.emp-txt{flex:1;min-width:0;line-height:1.25}
+.emp-txt b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.emp-txt small{display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.emp-menu{position:absolute;left:0;right:-40px;top:calc(100% + 6px);background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(16,24,40,.16);padding:6px;z-index:30;display:none;max-height:60vh;overflow:auto}
+.emp-switch.open .emp-menu{display:block}
+.emp-menu .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:6px 8px 4px}
+.emp-opt{width:100%;display:flex;align-items:center;gap:10px;padding:7px 8px;border:0;border-radius:8px;background:transparent;cursor:pointer;text-align:left}
+.emp-opt:hover{background:var(--soft)}
+.emp-opt .emp-txt b{white-space:normal}
+.emp-opt.on{background:var(--blue-bg)}
+.emp-opt .ok{width:16px;height:16px;color:var(--primary);flex:0 0 auto}
+.emp-new{border-top:1px solid var(--border);margin-top:4px;padding-top:4px}
+.emp-new .emp-opt{color:var(--primary);font-weight:600}
+.emp-new .emp-av{background:var(--soft);color:var(--primary);border:1px dashed var(--border2)}
 nav{padding:4px 8px;display:flex;flex-direction:column;gap:2px;flex:1;overflow:auto}
 nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;color:#3a3f4b;font-weight:500}
 nav a:hover{background:var(--soft)}
@@ -616,15 +633,41 @@ function crumbs(...items) {
 }
 function renderShell(section) {
   const e = emp();
-  $('#emp-switch').innerHTML = DB.empresas.length ? `<label>Empresa</label>
-    <select onchange="A.cambiarEmpresa(this.value)">${DB.empresas.map(x => `<option value="${x.id}" ${x.id === DB.activeId ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}
-    <option value="__new">+ Nueva empresa…</option></select>` : `<label>Empresa</label><div class="muted small">Sin empresas</div>`;
+  const sw = $('#emp-switch');
+  sw.classList.remove('open');
+  const sub = x => x.rnc ? fmtId(x.rnc) : 'Sin RNC';
+  const chev = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+  const ok = '<svg class="ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+  sw.innerHTML = `
+    <button type="button" class="emp-btn" onclick="A.empMenu(event)" aria-haspopup="listbox">
+      ${e ? `${empAvatar(e)}<span class="emp-txt"><b>${esc(e.nombre)}</b><small>${esc(sub(e))}</small></span>` : '<span class="emp-txt"><b>Sin empresas</b><small>Crea tu primera empresa</small></span>'}${chev}
+    </button>
+    <div class="emp-menu" role="listbox">
+      ${DB.empresas.length ? `<div class="lbl">Tus empresas</div>` : ''}
+      ${DB.empresas.map(x => `<button type="button" class="emp-opt ${x.id === DB.activeId ? 'on' : ''}" onclick="A.cambiarEmpresa('${x.id}')">
+        ${empAvatar(x)}<span class="emp-txt"><b>${esc(x.nombre)}</b><small>${esc(sub(x))}</small></span>${x.id === DB.activeId ? ok : ''}</button>`).join('')}
+      <div class="emp-new"><button type="button" class="emp-opt" onclick="A.cambiarEmpresa('__new')"><span class="emp-av">+</span><span class="emp-txt"><b>Nueva empresa</b></span></button></div>
+    </div>`;
   $('#nav').innerHTML = NAV.map(([k, l, ic]) => `<a href="#/${k}" class="${k === section ? 'active' : ''}">${icon(ic)}${l}</a>`).join('');
   $('#avatar').textContent = initials(SESSION?.user?.email || '');
   $('#side-foot').innerHTML = `${esc(SESSION?.user?.email || '')}<br>${e ? `Rol: ${{ dueno: 'Dueño', admin: 'Administrador', usuario: 'Usuario' }[e.rol] || e.rol} · ` : ''}<button class="linkish" style="font-size:11px" onclick="A.logout()">Cerrar sesión</button>`;
   document.body.classList.remove('nav-open');
 }
+const EMP_COLORES = ['#1f1b4d', '#e11d48', '#0f766e', '#7c3aed', '#c2410c', '#1d4ed8', '#4d7c0f', '#be185d'];
+function empAvatar(x) {
+  let h = 0; for (const ch of x.id || x.nombre || '') h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const ini = String(x.nombre || '').split(/\s+/).filter(w => /^[A-Za-zÁÉÍÓÚÑáéíóúñ0-9]/.test(w)).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '—';
+  return `<span class="emp-av" style="background:${EMP_COLORES[h % EMP_COLORES.length]}">${esc(ini)}</span>`;
+}
+A.empMenu = ev => {
+  ev.stopPropagation();
+  $('#emp-switch').classList.toggle('open');
+};
+document.addEventListener('click', ev => { const sw = $('#emp-switch'); if (sw && !sw.contains(ev.target)) sw.classList.remove('open'); });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') $('#emp-switch')?.classList.remove('open'); });
 A.cambiarEmpresa = async id => {
+  $('#emp-switch').classList.remove('open');
+  if (id === DB.activeId) return;
   if (id === '__new') { renderShell(parseHash().parts[0]); return A.editarEmpresa(); }
   busy(true, 'Cargando empresa…');
   try { await activarEmpresa(id); toast('Empresa: ' + emp().nombre); }
