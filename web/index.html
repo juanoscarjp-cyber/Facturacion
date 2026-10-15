@@ -1171,7 +1171,8 @@ function viewFactura(v, id) {
         ${notas.length ? `<div class="row"><span class="muted">Notas de crédito</span><span>-${money(totalNotas(f))}</span></div>` : ''}
         ${(() => { const rc = retenidoCliente(f); return `${rc.itbis ? `<div class="row"><span class="muted">ITBIS retenido por el cliente</span><span>-${money(rc.itbis)}</span></div>` : ''}${rc.isr ? `<div class="row"><span class="muted">ISR retenido por el cliente</span><span>-${money(rc.isr)}</span></div>` : ''}
         <div class="row"><span class="muted">Pagado</span><span>${money(r2(pag - rc.itbis - rc.isr))}</span></div>`; })()}
-        <div class="row ${sal > 0 ? 'due' : ''}"><span>Saldo pendiente</span><span>${money(sal)}</span></div>` : ''}
+        <div class="row ${sal > 0 ? 'due' : ''}"><span>Saldo pendiente</span><span>${money(sal)}</span></div>
+        ${sal > 0 && porCobrarNeto(f) !== sal ? `<div class="row small"><span class="muted">A cobrar en dinero (sin las retenciones previstas)</span><span>${money(porCobrarNeto(f))}</span></div>` : ''}` : ''}
     </div>
   </div>
 
@@ -2476,6 +2477,12 @@ function netoCliente(f) {
   const t = calc(f), itbis = r2(t.itbis * num(n.itbis) / 100), isr = r2(t.base * num(n.isr) / 100);
   return { pctItbis: num(n.itbis), pctIsr: num(n.isr), itbis, isr, neto: r2(t.total - itbis - isr) };
 }
+// Lo que el cliente todavía debe pagarte en dinero: el saldo menos las retenciones previstas que aún no se registran en un pago
+function porCobrarNeto(f) {
+  const sal = saldo(f), n = netoCliente(f); if (!n) return sal;
+  const rc = retenidoCliente(f);
+  return Math.max(0, r2(sal - Math.max(0, n.itbis - rc.itbis) - Math.max(0, n.isr - rc.isr)));
+}
 
 /* =========================================================
    COMPRAS Y GASTOS (comprobantes recibidos de proveedores · formato 606)
@@ -3653,7 +3660,7 @@ function cartaHTML(f) {
     <div class="t"><span>TOTAL</span><span>${money(t.total)}</span></div>
     ${(() => { const r = retenciones(f); return r ? `${f.tipo === 'E41' ? `<div><span>ITBIS retenido (${r.pctItbis}%)</span><span>${money(r.itbis)}</span></div>` : ''}<div><span>ISR retenido (${r.pctIsr}%)</span><span>${money(r.isr)}</span></div><div><b>Neto a pagar</b><b>${money(t.total - r.itbis - r.isr)}</b></div>` : ''; })()}
     ${(() => { const n = netoCliente(f); return n ? `${n.itbis ? `<div><span>ITBIS retenido (${n.pctItbis}%)</span><span>-${money(n.itbis)}</span></div>` : ''}${n.isr ? `<div><span>ISR retenido (${n.pctIsr}%)</span><span>-${money(n.isr)}</span></div>` : ''}<div><b>Neto a pagar</b><b>${money(n.neto)}</b></div>` : ''; })()}
-    ${!esNota(f.tipo) && !esEgreso(f.tipo) && f.estado !== 'anulada' && f.condicion === 'credito' ? `<div><span>Pagado</span><span>${money(pagado(f) + totalNotas(f))}</span></div><div><b>Balance</b><b>${money(sal)}</b></div>` : ''}
+    ${!esNota(f.tipo) && !esEgreso(f.tipo) && f.estado !== 'anulada' && f.condicion === 'credito' ? `<div><span>Pagado</span><span>${money(pagado(f) + totalNotas(f))}</span></div><div><b>Balance</b><b>${money(porCobrarNeto(f))}</b></div>` : ''}
   </div>
   ${f.notas ? `<div class="p-notes">${esc(f.notas)}</div>` : ''}
   ${bloqueECF(f, false)}
