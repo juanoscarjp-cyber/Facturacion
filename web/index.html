@@ -545,7 +545,10 @@ function calc(f) {
   const propina = f.propina ? r2(base * 0.10) : 0;
   return { bruto: r2(bruto), descuento: r2(desc), base, itbis: r2(itbis), propina, total: r2(base + itbis + propina), gravado: r2(gravado), exento: r2(exento) };
 }
-const pagado = f => r2((f.pagos || []).reduce((s, p) => s + num(p.monto), 0));
+// Lo que salda cada pago: dinero recibido + lo que el cliente retuvo (ITBIS/ISR) y paga a la DGII por ti.
+const retPago = p => r2(num(p.retItbis) + num(p.retIsr));
+const pagado = f => r2((f.pagos || []).reduce((s, p) => s + num(p.monto) + retPago(p), 0));
+const retenidoCliente = f => (f.pagos || []).reduce((a, p) => ({ itbis: r2(a.itbis + num(p.retItbis)), isr: r2(a.isr + num(p.retIsr)) }), { itbis: 0, isr: 0 });
 const notasDe = f => DB.facturas.filter(n => esNota(n.tipo) && n.facturaAfectadaId === f.id && n.estado !== 'anulada');
 const totalNotas = f => r2(notasDe(f).reduce((s, n) => s + calc(n).total, 0));
 function saldo(f) {
@@ -1056,14 +1059,16 @@ function viewFactura(v, id) {
       ${(() => { const r = retenciones(f); return r ? `${f.tipo === 'E41' ? `<div class="row"><span class="muted">ITBIS retenido (${r.pctItbis}%)</span><span>-${money(r.itbis)}</span></div>` : ''}<div class="row"><span class="muted">ISR retenido (${r.pctIsr}%)</span><span>-${money(r.isr)}</span></div><div class="row"><span>Neto pagado al proveedor</span><span>${money(t.total - r.itbis - r.isr)}</span></div>` : ''; })()}
       ${!esNota(f.tipo) && f.estado !== 'anulada' ? `
         ${notas.length ? `<div class="row"><span class="muted">Notas de crédito</span><span>-${money(totalNotas(f))}</span></div>` : ''}
-        <div class="row"><span class="muted">Pagado</span><span>${money(pag)}</span></div>
+        ${(() => { const rc = retenidoCliente(f); return `${rc.itbis ? `<div class="row"><span class="muted">ITBIS retenido por el cliente</span><span>-${money(rc.itbis)}</span></div>` : ''}${rc.isr ? `<div class="row"><span class="muted">ISR retenido por el cliente</span><span>-${money(rc.isr)}</span></div>` : ''}
+        <div class="row"><span class="muted">Pagado</span><span>${money(r2(pag - rc.itbis - rc.isr))}</span></div>`; })()}
         <div class="row ${sal > 0 ? 'due' : ''}"><span>Saldo pendiente</span><span>${money(sal)}</span></div>` : ''}
     </div>
   </div>
 
   ${!esNota(f.tipo) ? `<div class="card mt"><div class="card-h">Pagos registrados<span class="sp"></span>${sal > 0 ? `<button class="btn sm" onclick="A.registrarPago('${f.id}')">${icon('plus')} Agregar</button>` : ''}</div>
-    ${(f.pagos || []).length ? `<div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Método</th><th>Referencia</th><th class="right">Monto</th><th></th></tr></thead><tbody>
+    ${(f.pagos || []).length ? `<div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Método</th><th>Referencia</th><th class="right">Recibido</th><th class="right">Retenciones</th><th></th></tr></thead><tbody>
       ${f.pagos.map(p => `<tr><td>${fdate(p.fecha)}</td><td>${esc(p.metodo)}</td><td class="muted">${esc(p.referencia || '—')}</td><td class="right mono">${money(p.monto)}</td>
+      <td class="right mono">${retPago(p) ? `${money(retPago(p))}<span class="sub">${[num(p.retItbis) ? `ITBIS ${money(p.retItbis)}` : '', num(p.retIsr) ? `ISR ${money(p.retIsr)}` : ''].filter(Boolean).join(' · ')}</span>` : '<span class="muted">—</span>'}</td>
       <td class="right">${f.estado !== 'anulada' ? `<button class="icon-btn" title="Eliminar pago" onclick="A.borrarPago('${f.id}','${p.id}')">${icon('trash')}</button>` : ''}</td></tr>`).join('')}
     </tbody></table></div>` : `<div class="empty" style="padding:22px">Sin pagos registrados.</div>`}
   </div>` : ''}
@@ -1089,28 +1094,66 @@ function viewFactura(v, id) {
 }
 
 A.registrarPago = id => {
-  const f = getF(id), sal = saldo(f);
+  const f = getF(id), sal = saldo(f), t = calc(f), prev = retenidoCliente(f);
+  PAGO_CTX = { sal, itbis: t.itbis, base: t.base, prev };
+  const opts = lista => lista.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
   modal('Registrar pago', `
     <div class="alert info mb">${esc(f.numero)} · Saldo pendiente <b>${money(sal)}</b></div>
     <div class="fgrid">
-      <div class="field"><label>Monto</label><input class="in" name="monto" type="number" step="0.01" min="0.01" value="${sal.toFixed(2)}" required></div>
       <div class="field"><label>Fecha</label><input class="in" name="fecha" type="date" value="${today()}" required></div>
       <div class="field"><label>Método</label><select class="in" name="metodo">${METODOS.map(m => `<option>${m}</option>`).join('')}</select></div>
+    </div>
+    <div class="section-title" style="margin-top:4px">Retenciones del cliente</div>
+    <div class="fgrid" style="grid-template-columns:1fr">
+      <div class="field"><label>ITBIS retenido <span class="muted small">(ITBIS de la factura: ${money(t.itbis)})</span></label>
+        <div style="display:flex;gap:6px"><select class="in" name="pctItbis" onchange="A.pagoRet(this.form,'itbis')" ${t.itbis ? '' : 'disabled'}>${opts([['0', 'Sin retención'], ['30', '30% del ITBIS'], ['100', '100% del ITBIS'], ['otro', 'Otro monto']])}</select>
+        <input class="in" name="retItbis" type="number" step="0.01" min="0" value="0.00" style="max-width:120px" oninput="A.pagoRet(this.form)" ${t.itbis ? '' : 'disabled'}></div></div>
+      <div class="field"><label>ISR retenido <span class="muted small">(sobre ${money(t.base)} sin ITBIS)</span></label>
+        <div style="display:flex;gap:6px"><select class="in" name="pctIsr" onchange="A.pagoRet(this.form,'isr')">${opts([['0', 'Sin retención'], ['10', '10% (servicios)'], ['2', '2%'], ['5', '5%'], ['otro', 'Otro monto']])}</select>
+        <input class="in" name="retIsr" type="number" step="0.01" min="0" value="0.00" style="max-width:120px" oninput="A.pagoRet(this.form)"></div></div>
+    </div>
+    ${prev.itbis || prev.isr ? `<div class="hint small muted mb">Ya retenido en pagos anteriores: ITBIS ${money(prev.itbis)} · ISR ${money(prev.isr)}. Los porcentajes descuentan lo ya retenido.</div>` : ''}
+    <div class="fgrid">
+      <div class="field"><label>Monto recibido</label><input class="in" name="monto" type="number" step="0.01" min="0" value="${sal.toFixed(2)}" required oninput="PAGO_CTX.manual=true;A.pagoRet(this.form)"></div>
       <div class="field"><label>Referencia</label><input class="in" name="referencia" placeholder="No. transferencia, cheque…"></div>
-    </div>`, {
+    </div>
+    <div id="pago-resumen" class="small muted"></div>`, {
     okText: 'Registrar pago', onOk: async form => {
-      const monto = r2(num(fv(form, 'monto')));
-      if (monto <= 0) { toast('El monto debe ser mayor que cero.', 'error'); return false; }
-      if (monto > sal + 0.004) { toast(`El monto excede el saldo pendiente (${money(sal)}).`, 'error'); return false; }
+      const monto = r2(num(fv(form, 'monto'))), retItbis = r2(num(fv(form, 'retItbis'))), retIsr = r2(num(fv(form, 'retIsr')));
+      const aplicado = r2(monto + retItbis + retIsr);
+      if (monto < 0 || retItbis < 0 || retIsr < 0) { toast('Los montos no pueden ser negativos.', 'error'); return false; }
+      if (aplicado <= 0) { toast('El monto debe ser mayor que cero.', 'error'); return false; }
+      if (aplicado > sal + 0.004) { toast(`Monto recibido + retenciones (${money(aplicado)}) excede el saldo pendiente (${money(sal)}).`, 'error'); return false; }
       const pago = { id: uid(), fecha: fv(form, 'fecha') || today(), metodo: fv(form, 'metodo'), monto, referencia: fv(form, 'referencia'), por: SESSION.user.email };
+      if (retItbis) pago.retItbis = retItbis;
+      if (retIsr) pago.retIsr = retIsr;
       await mutateFactura(id, d => {
         const s = r2(calc(d).total - pagado(d) - totalNotas(d));
-        if (monto > s + 0.004) throw new Error(`Otro usuario ya registró pagos. Saldo actual: ${money(s)}.`);
+        if (aplicado > s + 0.004) throw new Error(`Otro usuario ya registró pagos. Saldo actual: ${money(s)}.`);
         d.pagos = d.pagos || []; d.pagos.push(pago);
       });
       toast('Pago registrado', 'ok'); route(true);
     }
   });
+  A.pagoRet($('#modal-root form'));
+};
+let PAGO_CTX = {};
+// Recalcula retenciones (según el % elegido) y el monto recibido = saldo − retenciones
+A.pagoRet = (form, cambio) => {
+  if (!form) return;
+  const c = PAGO_CTX, el = n => form.elements[n];
+  const aplicarPct = (sel, inp, total, ya) => {
+    const v = el(sel).value;
+    if (v === 'otro') { el(inp).readOnly = false; if (cambio) el(inp).focus(); }
+    else { el(inp).readOnly = true; el(inp).value = Math.max(0, r2(total * num(v) / 100 - ya)).toFixed(2); }
+  };
+  if (!el('retItbis').disabled) aplicarPct('pctItbis', 'retItbis', c.itbis, c.prev.itbis);
+  aplicarPct('pctIsr', 'retIsr', c.base, c.prev.isr);
+  const ret = r2(num(el('retItbis').value) + num(el('retIsr').value));
+  if (cambio || !c.manual) el('monto').value = Math.max(0, r2(c.sal - ret)).toFixed(2);
+  if (cambio) c.manual = false;
+  const queda = r2(c.sal - ret - num(el('monto').value));
+  $('#pago-resumen').innerHTML = `Recibido ${money(num(el('monto').value))} + retenciones ${money(ret)} = <b>${money(r2(num(el('monto').value) + ret))}</b>${queda > 0.004 ? ` · Quedará pendiente ${money(queda)}` : queda < -0.004 ? ` · <span style="color:var(--red)">Excede el saldo por ${money(-queda)}</span>` : ' · Factura saldada'}`;
 };
 A.borrarPago = (fid, pid) => confirmar('Eliminar pago', '¿Eliminar este pago? El saldo de la factura volverá a aumentar.', async () => {
   await mutateFactura(fid, d => { d.pagos = (d.pagos || []).filter(p => p.id !== pid); }); route(true);
@@ -2544,11 +2587,14 @@ function rows607() {
     const pm = { Efectivo: 0, 'Cheque/Transferencia': 0, Tarjeta: 0, Otro: 0 };
     (f.pagos || []).forEach(p => {
       const k = p.metodo === 'Efectivo' ? 'Efectivo' : p.metodo === 'Tarjeta' ? 'Tarjeta' : (p.metodo === 'Cheque' || p.metodo === 'Transferencia') ? 'Cheque/Transferencia' : 'Otro';
-      pm[k] += num(p.monto);
+      // Lo retenido por el cliente forma parte de lo cobrado con ese pago (las formas de pago suman el total)
+      pm[k] += num(p.monto) + retPago(p);
     });
     const credito = esNota(f.tipo) ? 0 : Math.max(0, r2(t.total - pagado(f)));
     const afect = f.facturaAfectadaId ? getF(f.facturaAfectadaId) : null;
-    return { f, rnc, tipoId: rnc.length === 9 ? '1' : rnc.length === 11 ? '2' : '', ncfMod: afect?.ncf || '', t, pm, credito };
+    const ret = retenidoCliente(f);
+    const fechaRet = (f.pagos || []).filter(p => retPago(p)).map(p => p.fecha).sort().pop() || '';
+    return { f, rnc, tipoId: rnc.length === 9 ? '1' : rnc.length === 11 ? '2' : '', ncfMod: afect?.ncf || '', t, pm, credito, ret, fechaRet };
   });
 }
 function rep607(el) {
@@ -2556,17 +2602,18 @@ function rep607(el) {
   el.innerHTML = `
   <div class="alert info mb">Listado de ventas con NCF del período, con las columnas del formato 607 de la DGII. Revísalo antes de cargarlo en la Oficina Virtual o en la herramienta de pre-validación.</div>
   <div class="card"><div class="card-h">${rows.length} comprobantes<span class="sp"></span><button class="btn sm" onclick="A.csv607()">${icon('down')} Exportar CSV</button></div>
-  <div class="tbl-wrap"><table><thead><tr><th>RNC/Cédula</th><th>Tipo ID</th><th>NCF</th><th>NCF modificado</th><th>Fecha</th><th class="right">Monto facturado</th><th class="right">ITBIS</th><th class="right">Propina</th><th class="right">Efectivo</th><th class="right">Cheque/Transf.</th><th class="right">Tarjeta</th><th class="right">Crédito</th></tr></thead><tbody>
+  <div class="tbl-wrap"><table><thead><tr><th>RNC/Cédula</th><th>Tipo ID</th><th>NCF</th><th>NCF modificado</th><th>Fecha</th><th class="right">Monto facturado</th><th class="right">ITBIS</th><th class="right">ITBIS ret.</th><th class="right">ISR ret.</th><th class="right">Propina</th><th class="right">Efectivo</th><th class="right">Cheque/Transf.</th><th class="right">Tarjeta</th><th class="right">Crédito</th></tr></thead><tbody>
   ${rows.length ? rows.map(r => `<tr class="click" onclick="location.hash='#/facturas/${r.f.id}'"><td class="mono small">${esc(r.rnc || '—')}</td><td>${r.tipoId || '—'}</td><td class="mono small">${esc(r.f.ncf)}</td><td class="mono small">${esc(r.ncfMod || '')}</td>
-    <td class="nowrap">${fdate(r.f.fecha)}</td><td class="right">${money(r.t.base)}</td><td class="right">${money(r.t.itbis)}</td><td class="right">${money(r.t.propina)}</td>
+    <td class="nowrap">${fdate(r.f.fecha)}</td><td class="right">${money(r.t.base)}</td><td class="right">${money(r.t.itbis)}</td><td class="right">${r.ret.itbis ? money(r.ret.itbis) : '—'}</td><td class="right">${r.ret.isr ? money(r.ret.isr) : '—'}</td><td class="right">${money(r.t.propina)}</td>
     <td class="right">${money(r.pm.Efectivo)}</td><td class="right">${money(r.pm['Cheque/Transferencia'])}</td><td class="right">${money(r.pm.Tarjeta)}</td><td class="right">${money(r.credito)}</td></tr>`).join('')
-    : `<tr><td colspan="12"><div class="empty">Sin comprobantes en el período.</div></td></tr>`}
+    : `<tr><td colspan="14"><div class="empty">Sin comprobantes en el período.</div></td></tr>`}
   </tbody></table></div></div>`;
 }
 A.csv607 = () => {
   const rows = rows607();
   downloadCSV(fname('607'), [['RNC/Cédula', 'Tipo Identificación', 'Número Comprobante Fiscal', 'NCF Modificado', 'Tipo de Ingreso', 'Fecha Comprobante', 'Fecha Retención', 'Monto Facturado', 'ITBIS Facturado', 'ITBIS Retenido por Terceros', 'ITBIS Percibido', 'Retención Renta por Terceros', 'ISR Percibido', 'Impuesto Selectivo al Consumo', 'Otros Impuestos/Tasas', 'Monto Propina Legal', 'Efectivo', 'Cheque/Transferencia/Depósito', 'Tarjeta Débito/Crédito', 'Venta a Crédito', 'Bonos o Certificados de Regalo', 'Permuta', 'Otras Formas de Ventas'],
-    ...rows.map(r => [r.rnc, r.tipoId, r.f.ncf, r.ncfMod, '01', r.f.fecha.replace(/-/g, ''), '', r.t.base.toFixed(2), r.t.itbis.toFixed(2), '', '', '', '', '', '', r.t.propina.toFixed(2),
+    ...rows.map(r => [r.rnc, r.tipoId, r.f.ncf, r.ncfMod, '01', r.f.fecha.replace(/-/g, ''), r.fechaRet.replace(/-/g, ''), r.t.base.toFixed(2), r.t.itbis.toFixed(2),
+      r.ret.itbis ? r.ret.itbis.toFixed(2) : '', '', r.ret.isr ? r.ret.isr.toFixed(2) : '', '', '', '', r.t.propina.toFixed(2),
       r2(r.pm.Efectivo).toFixed(2), r2(r.pm['Cheque/Transferencia']).toFixed(2), r2(r.pm.Tarjeta).toFixed(2), r.credito.toFixed(2), '', '', r2(r.pm.Otro).toFixed(2)])]);
 };
 function rep608(el) {
