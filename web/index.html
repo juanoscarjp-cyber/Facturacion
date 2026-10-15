@@ -99,6 +99,7 @@ nav a svg{width:18px;height:18px;flex:0 0 auto}
 .search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:17px;height:17px;color:var(--muted)}
 .chip-select{display:flex;align-items:center;gap:6px;border:1px solid var(--border2);border-radius:12px;background:#fff;padding:0 10px}
 .chip-select span{color:var(--muted);font-size:13px;white-space:nowrap}
+.chip-select>svg{width:16px;height:16px;color:var(--muted);flex:0 0 auto}
 .chip-select select,.chip-select input{border:0;background:transparent;padding:10px 2px;font-weight:600;outline:none;cursor:pointer}
 table{width:100%;border-collapse:collapse}
 th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;text-align:left;padding:11px 14px;background:#fafafb;border-bottom:1px solid var(--border);white-space:nowrap}
@@ -116,6 +117,44 @@ tbody tr.click:hover td{background:#fafafc}
 .pill.gray{color:var(--gray);background:var(--gray-bg)}.pill.purple{color:var(--purple);background:var(--purple-bg)}
 .tag{display:inline-block;padding:2px 7px;border-radius:6px;background:var(--soft);font-size:11px;font-weight:600;color:#3a3f4b;font-family:var(--mono)}
 .empty{padding:40px 20px;text-align:center;color:var(--muted)}
+/* Dashboard */
+.db-top{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}
+.db-left{display:flex;flex-direction:column;gap:16px;min-width:0}
+.db-card{background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+.db-head{padding:18px 20px 14px;border-bottom:1px solid var(--border)}
+.db-head b{display:block;font-size:15px}.db-head small{color:var(--muted);font-size:12px}
+.db-kpis{display:grid;grid-template-columns:repeat(4,1fr)}
+.db-kpi{padding:18px 20px;border-right:1px solid var(--border);min-width:0}
+.db-kpi:last-child{border-right:0}
+.db-kpi .l{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#3a3f4b;display:flex;align-items:center;gap:6px}
+.db-kpi .l i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.db-kpi .v{font-family:var(--mono);font-size:26px;font-weight:600;margin:8px 0 4px;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.db-kpi .d{font-size:12px;color:var(--muted)}
+.db-res{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 20px;border-top:1px solid var(--border)}
+.db-res b{font-size:13px;flex:1;min-width:160px}
+.db-res .eq{font-family:var(--mono);font-size:13px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.db-res .eq .tot{font-size:24px;font-weight:600}
+.db-bar{margin:20px 20px 14px;height:34px;border-radius:9px;background:#c9c6dc;overflow:hidden;display:flex}
+.db-bar div{background:var(--primary);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;padding:0 10px;white-space:nowrap;min-width:0}
+.db-chips{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:12px;padding:0 20px 20px}
+.db-chips div{background:var(--soft);border-radius:10px;padding:11px 12px;display:flex;justify-content:space-between;gap:8px;font-size:13px;color:#4a4f5c}
+.db-chips b{font-family:var(--mono);color:var(--text);white-space:nowrap}
+.db-deuda{background:#fefbea;border:1px solid #f4dd87;border-radius:16px;padding:20px}
+.db-deuda .l{font-size:11px;font-weight:700;letter-spacing:.05em;color:#b45309}
+.db-deuda .v{font-family:var(--mono);font-size:30px;font-weight:700;color:#c2410c;margin:6px 0 2px;letter-spacing:-.03em}
+.db-deuda .d{font-size:12px;color:#b45309;padding-bottom:16px;border-bottom:1px solid #f1e3a8}
+.db-deuda .l2{font-size:11px;font-weight:700;letter-spacing:.05em;color:#b45309;margin:16px 0 8px}
+.db-old{display:flex;justify-content:space-between;gap:8px;background:#fff;border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer}
+.db-old:hover{box-shadow:0 0 0 1px #f4dd87}
+.db-old .n{font-family:var(--mono);font-size:12px;font-weight:600}
+.db-old .c{font-size:11px;color:#c2410c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.db-old .r{text-align:right;font-family:var(--mono);font-size:12px;font-weight:600;white-space:nowrap}
+.db-old .r small{display:block;color:var(--red);font-size:11px}
+.db-deuda .btn{width:100%;margin-top:10px;background:#fff;color:#c2410c;border-color:#f4dd87}
+.db-stats{display:grid;grid-template-columns:repeat(4,1fr);margin-top:16px}
+.db-stats .db-kpi .v{font-family:inherit;font-size:22px;margin:6px 0 2px}
+@media (max-width:1100px){.db-top{grid-template-columns:1fr}}
+@media (max-width:760px){.db-kpis,.db-stats{grid-template-columns:1fr 1fr}.db-kpi:nth-child(2n){border-right:0}.db-kpi:nth-child(-n+2){border-bottom:1px solid var(--border)}.db-chips{grid-template-columns:1fr}.db-kpi .v{font-size:21px}}
 /* KPI */
 .kpi{padding:16px 18px}
 .kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
@@ -227,6 +266,8 @@ body.auth-mode #sidebar, body.auth-mode .topbar{display:none}
 .p-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:12px}
 .p-emp{display:flex;gap:12px;align-items:flex-start}
 .p-emp img{max-width:110px;max-height:80px;object-fit:contain}
+.p-emp img.logo-S{max-width:70px;max-height:50px}
+.p-emp img.logo-G{max-width:180px;max-height:130px}
 .p-emp h2{margin:0 0 3px;font-size:18px}
 .p-emp div{font-size:11px;line-height:1.5}
 .p-title{text-align:right}
@@ -253,6 +294,8 @@ body.auth-mode #sidebar, body.auth-mode .topbar{display:none}
 .tk{text-align:center}
 .tk h2{font-size:14px;margin:4px 0}
 .tk img{max-width:40mm;max-height:22mm}
+.tk img.logo-S{max-width:26mm;max-height:14mm}
+.tk img.logo-G{max-width:60mm;max-height:34mm}
 .tk-line{border-top:1px dashed #000;margin:6px 0}
 .tk-row{display:flex;justify-content:space-between;gap:6px}
 .tk-l{text-align:left}
@@ -342,7 +385,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let SESSION = null;
 let BOOTING = true;
 
-function blankDB() { return { version: 1, empresas: [], activeId: null, clientes: [], productos: [], facturas: [] }; }
+function blankDB() { return { version: 1, empresas: [], activeId: null, clientes: [], productos: [], facturas: [], gastos: [] }; }
 let DB = blankDB();   // caché en memoria de la empresa activa
 function localBackup() {
   try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && Array.isArray(d.empresas) && d.empresas.length) return d; } catch (e) { }
@@ -380,11 +423,9 @@ const stripIds = o => { const { id, empresaId, ...rest } = o; return rest; };
 const fromRow = r => ({ ...(r.data || {}), id: r.id, empresaId: r.empresa_id });
 const fromFacturaRow = r => ({ pagos: [], items: [], ...(r.data || {}), id: r.id, empresaId: r.empresa_id, numero: r.numero, tipo: r.tipo, ncf: r.ncf || '', _v: r.updated_at });
 const facturaData = f => { const { id, empresaId, _v, _edit, ...rest } = f; return rest; };
+const seqRow = (empresaId, t, s = {}) => ({ empresa_id: empresaId, tipo: t, activo: !!s.activo, desde: num(s.desde) || 1, hasta: s.hasta === '' || s.hasta == null ? null : num(s.hasta), actual: num(s.actual), vence: s.vence || null });
 function seqRows(empresaId, secuencias) {
-  return Object.keys(NCF_TIPOS).map(t => {
-    const s = secuencias[t] || {};
-    return { empresa_id: empresaId, tipo: t, activo: !!s.activo, desde: num(s.desde) || 1, hasta: s.hasta === '' || s.hasta == null ? null : num(s.hasta), actual: num(s.actual), vence: s.vence || null };
-  });
+  return Object.keys(NCF_TIPOS).map(t => seqRow(empresaId, t, secuencias[t]));
 }
 function putCache(list, obj) {
   const arr = DB[list], i = arr.findIndex(x => x.id === obj.id);
@@ -416,14 +457,17 @@ async function reloadEmpresa(id) {
   if (i >= 0) DB.empresas[i] = ne; else DB.empresas.push(ne);
 }
 async function loadEmpresaData(id) {
-  const [cs, ps, fs] = await Promise.all([fetchAll('clientes', id), fetchAll('productos', id), fetchAll('facturas', id)]);
+  // gastos: si aún no se ejecutó supabase/ecf6.sql la tabla no existe; el resto de la app sigue funcionando
+  const [cs, ps, fs, gs] = await Promise.all([fetchAll('clientes', id), fetchAll('productos', id), fetchAll('facturas', id),
+    fetchAll('gastos', id).then(r => { DB.sinGastos = false; return r; }, () => { DB.sinGastos = true; return []; })]);
   DB.clientes = cs.map(fromRow);
   DB.productos = ps.map(fromRow);
   DB.facturas = fs.map(fromFacturaRow);
+  DB.gastos = gs.map(fromRow);
 }
 async function activarEmpresa(id) {
   DB.activeId = id;
-  DB.clientes = []; DB.productos = []; DB.facturas = [];
+  DB.clientes = []; DB.productos = []; DB.facturas = []; DB.gastos = [];
   try { localStorage.setItem(activeKey(), id || ''); } catch (e) { }
   if (id) await loadEmpresaData(id);
   subscribe();
@@ -450,6 +494,7 @@ function subscribe() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'facturas', filter: f }, p => rtRow('facturas', p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'clientes', filter: f }, p => rtRow('clientes', p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'productos', filter: f }, p => rtRow('productos', p))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos', filter: f }, p => rtRow('gastos', p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'secuencias', filter: f }, () => rtEmpresa())
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'empresas', filter: `id=eq.${id}` }, () => rtEmpresa())
     .subscribe();
@@ -518,6 +563,9 @@ const ICONS = {
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   down: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
   undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>',
+  cart: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/>',
+  hash: '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>',
+  cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
   receipt: '<path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 .7V2l-1 .7-3-2-3 2-3-2-3 2-3-2z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
 };
 const icon = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[n] || ''}</svg>`;
@@ -631,8 +679,8 @@ function downloadCSV(name, rows) {
 
 /* ---------- Router ---------- */
 const NAV = [
-  ['dashboard', 'Dashboard', 'dash'], ['facturas', 'Facturas', 'inv'], ['clientes', 'Clientes', 'users'],
-  ['productos', 'Productos y servicios', 'box'], ['reportes', 'Reportes', 'chart'],
+  ['dashboard', 'Dashboard', 'dash'], ['facturas', 'Facturas', 'inv'], ['gastos', 'Compras y gastos', 'cart'], ['clientes', 'Clientes', 'users'],
+  ['productos', 'Productos y servicios', 'box'], ['secuencias', 'Secuencias NCF', 'hash'], ['reportes', 'Reportes', 'chart'],
   ['recibidos', 'e-CF recibidos', 'down'], ['empresas', 'Empresas', 'building'], ['certificacion', 'Certificación DGII', 'receipt'], ['ajustes', 'Respaldo y ajustes', 'gear'],
 ];
 function parseHash() {
@@ -735,6 +783,8 @@ function route(keepScroll) {
       case 'clientes': return viewClientes(v);
       case 'productos': return viewProductos(v);
       case 'reportes': return viewReportes(v);
+      case 'gastos': return viewGastos(v);
+      case 'secuencias': return viewSecuencias(v);
       case 'empresas': return viewEmpresas(v);
       case 'ajustes': return viewAjustes(v);
       case 'certificacion': return viewCertificacion(v);
@@ -836,18 +886,46 @@ function pedirNuevaPassword() {
 /* =========================================================
    DASHBOARD
    ========================================================= */
+const DB_PERIODOS = { mes: 'Este mes', mesant: 'Mes anterior', tri: 'Últimos 3 meses', anio: 'Este año', anioant: 'Año anterior', todo: 'Todo' };
+let DBP = 'mes';
+function rangoPeriodo(p) {
+  const d = new Date(), y = d.getFullYear(), m = d.getMonth();
+  if (p === 'mesant') return [iso(new Date(y, m - 1, 1)), iso(new Date(y, m, 0))];
+  if (p === 'tri') return [iso(new Date(y, m - 2, 1)), today()];
+  if (p === 'anio') return [`${y}-01-01`, `${y}-12-31`];
+  if (p === 'anioant') return [`${y - 1}-01-01`, `${y - 1}-12-31`];
+  if (p === 'todo') return ['0000-01-01', '9999-12-31'];
+  return [iso(new Date(y, m, 1)), iso(new Date(y, m + 1, 0))];
+}
+const moneyInt = n => (n < 0 ? '-' : '') + 'RD$' + Math.round(Math.abs(Number(n) || 0)).toLocaleString('en-US');
+A.dbPeriodo = p => { DBP = p; viewDashboard($('#view')); };
 function viewDashboard(v) {
   const e = emp();
   crumbs([e.nombre, '#/dashboard'], ['Dashboard']);
   const fs = facturas().filter(vigente);
-  const hoy = today(), mes = hoy.slice(0, 7), anio = hoy.slice(0, 4);
-  const delMes = fs.filter(f => f.fecha.slice(0, 7) === mes);
-  const facturadoMes = r2(delMes.reduce((s, f) => s + signo(f) * calc(f).total, 0));
-  const itbisMes = r2(delMes.reduce((s, f) => s + signo(f) * calc(f).itbis, 0));
-  const cobradoMes = r2(fs.reduce((s, f) => s + (f.pagos || []).filter(p => p.fecha.slice(0, 7) === mes).reduce((a, p) => a + num(p.monto), 0), 0));
+  const hoy = today(), anio = hoy.slice(0, 4);
+  const [desde, hasta] = rangoPeriodo(DBP), enP = s => s >= desde && s <= hasta;
+  const per = fs.filter(f => enP(f.fecha));
+  const ventas = per.filter(f => !esEgreso(f.tipo));
+  const facturasP = ventas.filter(f => !esNota(f.tipo));
+  const facturacion = r2(ventas.reduce((s, f) => s + signo(f) * calc(f).total, 0));
+  const pagosP = fs.flatMap(f => (f.pagos || []).filter(p => enP(p.fecha)));
+  const cobros = r2(pagosP.reduce((s, p) => s + num(p.monto), 0));
+  // Compras = e-CF de compras (E41); gastos = gastos menores y pagos al exterior (E43, E47)
+  // más lo registrado en el módulo Compras y gastos
+  const gPer = gastos().filter(g => enP(g.fecha));
+  const comprasL = [...per.filter(f => f.tipo === 'E41'), ...gPer.filter(esCompraG)], gastosL = [...per.filter(f => esEgreso(f.tipo) && f.tipo !== 'E41'), ...gPer.filter(g => !esCompraG(g))];
+  const totEg = x => x.items ? calc(x).total : calcG(x).total;
+  const compras = r2(comprasL.reduce((s, x) => s + totEg(x), 0)), gastosTot = r2(gastosL.reduce((s, x) => s + totEg(x), 0));
+  const resultado = r2(facturacion - gastosTot - compras);
+  const contado = facturasP.filter(f => f.condicion !== 'credito').length, credito = facturasP.length - contado;
+  const pctC = facturasP.length ? Math.round(contado / facturasP.length * 100) : 0;
   const pendientes = fs.filter(f => saldo(f) > 0);
-  const porCobrar = r2(pendientes.reduce((s, f) => s + saldo(f), 0));
-  const vencidas = pendientes.filter(f => estado(f) === 'vencida');
+  const deuda = r2(pendientes.reduce((s, f) => s + saldo(f), 0));
+  const viejas = pendientes.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(0, 5);
+  const nuevosClientes = clientes().filter(c => c.creado && enP(c.creado.slice(0, 10))).length;
+  const unidades = r2(facturasP.reduce((s, f) => s + (f.items || []).reduce((a, it) => a + num(it.cantidad), 0), 0));
+  const etiqueta = DB_PERIODOS[DBP].toLowerCase();
 
   // Últimos 12 meses
   const meses = [];
@@ -870,25 +948,52 @@ function viewDashboard(v) {
 
   // Alertas NCF
   const alertas = [];
-  Object.keys(NCF_TIPOS).forEach(t => {
-    const s = seqInfo(e, t); if (!s) return;
-    if (s.vencida) alertas.push(['err', `Secuencia ${t} vencida desde ${fdate(s.vence)}.`]);
-    else if (s.vence && daysBetween(hoy, s.vence) <= 30) alertas.push(['warn', `Secuencia ${t} vence el ${fdate(s.vence)}.`]);
-    if (s.restantes !== Infinity && s.restantes <= Math.max(10, (num(s.hasta) - num(s.desde) + 1) * 0.1))
-      alertas.push([s.restantes === 0 ? 'err' : 'warn', `Secuencia ${t}: ${s.restantes === 0 ? 'agotada' : `quedan ${s.restantes} comprobantes`}.`]);
-  });
-  if (!TIPOS_FACTURA.some(t => seqInfo(e, t))) alertas.push(['info', 'No tienes secuencias NCF activas. Configúralas en Empresas para emitir comprobantes fiscales.']);
-
-  const recientes = facturas().slice().sort((a, b) => (b.fecha + b.creada).localeCompare(a.fecha + a.creada)).slice(0, 8);
+  alertas.push(...alertasNCF(e));
+  if (!TIPOS_FACTURA.some(t => seqInfo(e, t))) alertas.push(['info', 'No tienes secuencias NCF activas. Regístralas en Secuencias NCF para emitir comprobantes fiscales.']);
 
   v.innerHTML = `
-  <div class="page-head"><h1>Dashboard</h1><a class="btn primary" href="#/facturas/nueva">${icon('plus')} Nueva factura</a></div>
-  ${alertas.map(a => `<div class="alert ${a[0]} mb">${esc(a[1])} <a href="#/empresas" style="text-decoration:underline;margin-left:auto">Ver secuencias</a></div>`).join('')}
-  <div class="grid g4">
-    <div class="card kpi"><div class="l">Facturado del mes</div><div class="v">${money(facturadoMes)}</div><div class="d">${delMes.filter(f => !esNota(f.tipo)).length} facturas en ${MESES[+mes.slice(5) - 1]}</div></div>
-    <div class="card kpi"><div class="l">Cobrado del mes</div><div class="v">${money(cobradoMes)}</div><div class="d">Pagos recibidos</div></div>
-    <div class="card kpi"><div class="l">Por cobrar</div><div class="v" style="color:${porCobrar > 0 ? 'var(--amber)' : 'inherit'}">${money(porCobrar)}</div><div class="d">${pendientes.length} pendientes · ${vencidas.length} vencidas</div></div>
-    <div class="card kpi"><div class="l">ITBIS del mes</div><div class="v">${money(itbisMes)}</div><div class="d">Facturado (neto de notas)</div></div>
+  <div class="page-head"><h1>Dashboard</h1>
+    <label class="chip-select">${icon('cal')}<select onchange="A.dbPeriodo(this.value)">${Object.entries(DB_PERIODOS).map(([k, l]) => `<option value="${k}" ${DBP === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <a class="btn primary" href="#/facturas/nueva">${icon('plus')} Nueva factura</a></div>
+  ${alertas.map(a => `<div class="alert ${a[0]} mb">${esc(a[1])} <a href="#/secuencias" style="text-decoration:underline;margin-left:auto">Ver secuencias</a></div>`).join('')}
+  <div class="db-top">
+    <div class="db-left">
+      <div class="db-card">
+        <div class="db-head"><b>Resumen del período</b><small>${DB_PERIODOS[DBP]}</small></div>
+        <div class="db-kpis">
+          <div class="db-kpi"><div class="l"><i style="background:#0ea5e9"></i>Facturación</div><div class="v" style="color:#0369a1">${moneyInt(facturacion)}</div><div class="d">${facturasP.length} facturas emitidas</div></div>
+          <div class="db-kpi"><div class="l"><i style="background:#6366f1"></i>Cobros</div><div class="v" style="color:#4338ca">${moneyInt(cobros)}</div><div class="d">${pagosP.length} pagos recibidos</div></div>
+          <div class="db-kpi"><div class="l"><i style="background:#f59e0b"></i>Gastos</div><div class="v" style="color:#c2410c">${moneyInt(gastosTot)}</div><div class="d">${gastosL.length} registrados</div></div>
+          <div class="db-kpi"><div class="l"><i style="background:#a855f7"></i>Compras</div><div class="v" style="color:#7e22ce">${moneyInt(compras)}</div><div class="d">${comprasL.length} registradas</div></div>
+        </div>
+        <div class="db-res"><b>Resultados del período</b>
+          <span class="eq"><span style="color:#0369a1">${moneyInt(facturacion)}</span> − <span style="color:#c2410c">${moneyInt(r2(gastosTot + compras))}</span> = <span class="tot" style="color:${resultado < 0 ? 'var(--red)' : '#047857'}">${moneyInt(resultado)}</span></span></div>
+      </div>
+      <div class="db-card">
+        <div class="db-head"><b>Composición de la facturación</b><small>${facturasP.length} facturas · ${DB_PERIODOS[DBP]}</small></div>
+        ${facturasP.length ? `<div class="db-bar"><div style="width:${pctC}%">${pctC >= 12 ? `Contado ${contado}` : ''}</div>${pctC <= 88 && credito ? `<span style="font-size:12px;font-weight:700;color:var(--primary);display:flex;align-items:center;padding:0 10px">Crédito ${credito}</span>` : ''}</div>` : `<div class="empty" style="padding:22px">Sin facturas ${etiqueta}.</div>`}
+        <div class="db-chips">
+          <div><span>Contado</span><b>${contado} · ${pctC}%</b></div>
+          <div><span>Crédito</span><b>${credito} · ${facturasP.length ? 100 - pctC : 0}%</b></div>
+          <div><span>Egresos del período</span><b>${moneyInt(r2(gastosTot + compras))}</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="db-deuda">
+      <div class="l">DEUDA ACUMULADA</div>
+      <div class="v">${moneyInt(deuda)}</div>
+      <div class="d">${pendientes.length} facturas de venta sin pagar</div>
+      ${viejas.length ? `<div class="l2">LAS ${viejas.length} MÁS VIEJAS</div>
+      ${viejas.map(f => `<div class="db-old" onclick="location.hash='#/facturas/${f.id}'"><div style="min-width:0"><div class="n">${esc(f.numero)}</div><div class="c">${esc(f.cliente?.nombre || 'Consumidor Final')}</div></div>
+        <div class="r">${moneyInt(saldo(f))}<small>${Math.max(0, daysBetween(f.fecha, hoy))}d</small></div></div>`).join('')}
+      <a class="btn" href="#/facturas" onclick="LF.estado='pendiente'">Ver facturas pendientes ›</a>` : `<div class="l2" style="color:var(--green)">Todo cobrado 🎉</div>`}
+    </div>
+  </div>
+  <div class="db-card db-stats">
+    <div class="db-kpi"><div class="l">Nuevos clientes</div><div class="v">${nuevosClientes}</div><div class="d">registrados</div></div>
+    <div class="db-kpi"><div class="l">Productos / servicios</div><div class="v">${unidades.toLocaleString('en-US')}</div><div class="d">unidades vendidas</div></div>
+    <div class="db-kpi"><div class="l">Facturas a crédito</div><div class="v">${credito}</div><div class="d">creadas</div></div>
+    <div class="db-kpi"><div class="l">Facturas de contado</div><div class="v">${contado}</div><div class="d">creadas</div></div>
   </div>
   <div class="grid mt" style="grid-template-columns:2fr 1fr">
     <div class="card"><div class="card-h">Ventas últimos 12 meses<span class="sp"></span>
@@ -897,10 +1002,6 @@ function viewDashboard(v) {
     <div class="card"><div class="card-h">Mejores clientes ${anio}</div>
       ${top.length ? `<table><tbody>${top.map(c => `<tr><td>${esc(c.nombre)}<span class="sub">${c.n} documentos</span></td><td class="right nowrap">${money(c.total)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Sin ventas este año</div>`}
     </div>
-  </div>
-  <div class="card mt"><div class="card-h">Facturas recientes<span class="sp"></span><a class="btn sm" href="#/facturas">Ver todas</a></div>
-    ${recientes.length ? `<div class="tbl-wrap"><table><thead><tr><th>Número</th><th class="hide-sm">NCF</th><th>Cliente</th><th class="hide-sm">Fecha</th><th class="right">Total</th><th>Estado</th></tr></thead>
-    <tbody>${recientes.map(rowFactura).join('')}</tbody></table></div>` : `<div class="empty">Aún no hay facturas. <a href="#/facturas/nueva" style="text-decoration:underline">Crea la primera</a>.</div>`}
   </div>`;
 }
 function barChart(serie) {
@@ -944,6 +1045,7 @@ function viewFacturas(v) {
     ${esAdmin() && facturas().some(esPrueba) ? `<button class="btn danger" onclick="A.borrarPruebas()">${icon('trash')} Borrar pruebas (${facturas().filter(esPrueba).length})</button>` : ''}
     ${esAdmin() ? `<button class="btn" onclick="A.importarXML()">${icon('down')} Importar XML</button>` : ''}
     <a class="btn primary" href="#/facturas/nueva">${icon('plus')} Crear</a></div></div>
+  ${alertasNCF(e).map(a => `<div class="alert ${a[0]} mb">${esc(a[1])} <a href="#/secuencias" style="text-decoration:underline;margin-left:auto">Ver secuencias</a></div>`).join('')}
   <div class="toolbar"><div class="search">${icon('search')}<input id="lf-q" placeholder="Buscar por número, NCF, cliente o RNC…" value="${esc(LF.q)}" oninput="A.lf('q',this.value)"></div></div>
   <div class="toolbar">
     <label class="chip-select"><span>Comprobante:</span><select onchange="A.lf('tipo',this.value)">
@@ -2078,10 +2180,9 @@ function renderForm(v = $('#view')) {
   const seq = d.tipo !== TIPO_NONE ? seqInfo(e, d.tipo) : null;
   let seqMsg = '';
   if (!d._edit && d.tipo !== TIPO_NONE) {
-    if (!seq) seqMsg = `<div class="alert err">No hay secuencia activa para ${d.tipo}. <a href="#/empresas" style="text-decoration:underline">Configurar</a></div>`;
-    else if (seq.vencida) seqMsg = `<div class="alert err">La secuencia ${d.tipo} está vencida (${fdate(seq.vence)}).</div>`;
-    else if (seq.restantes === 0) seqMsg = `<div class="alert err">La secuencia ${d.tipo} está agotada.</div>`;
-    else seqMsg = `<div class="muted small">Próximo ${esECF(d.tipo) ? 'e-NCF' : 'NCF'}: <span class="mono">${d.tipo}${pad(Math.max(num(seq.actual) + 1, num(seq.desde)), esECF(d.tipo) ? 10 : 8)}</span>${seq.restantes !== Infinity ? ` · quedan ${seq.restantes.toLocaleString('en-US')}` : ''}</div>`;
+    const bloqueo = bloqueoNCF(e, d.tipo), st = estadoSeq(e, d.tipo);
+    if (bloqueo) seqMsg = `<div class="alert err" style="margin-top:6px"><div>${esc(bloqueo)} <a href="#/secuencias" style="text-decoration:underline">Ir a Secuencias NCF</a></div></div>`;
+    else seqMsg = `<div class="small" style="color:${st.k === 'baja' ? 'var(--amber)' : 'var(--muted)'}">Próximo ${esECF(d.tipo) ? 'e-NCF' : 'NCF'}: <span class="mono">${d.tipo}${pad(Math.max(num(seq.actual) + 1, num(seq.desde)), esECF(d.tipo) ? 10 : 8)}</span>${seq.restantes !== Infinity ? ` · quedan ${seq.restantes.toLocaleString('en-US')}${st.k === 'baja' ? ' ⚠' : ''}` : ''}</div>`;
   }
   const cli = d.clienteId ? getC(d.clienteId) : null;
   const needRNC = NCF_TIPOS[d.tipo]?.requiereRNC;
@@ -2097,7 +2198,7 @@ function renderForm(v = $('#view')) {
         <div class="fgrid">
           <div class="field"><label>Tipo de comprobante</label>
             <select class="in" ${d._edit || isRef ? 'disabled' : ''} onchange="A.df('tipo',this.value,true)">
-              ${tiposDisp.map(t => `<option value="${t}" ${d.tipo === t ? 'selected' : ''}>${t === TIPO_NONE ? 'Sin comprobante fiscal' : `${t} · ${nombreTipo(t)}`}</option>`).join('')}
+              ${tiposDisp.map(t => { const k = t === TIPO_NONE ? '' : estadoSeq(e, t).k; return `<option value="${t}" ${d.tipo === t ? 'selected' : ''}>${t === TIPO_NONE ? 'Sin comprobante fiscal' : `${t} · ${nombreTipo(t)}${['agotada', 'vencida', 'inactiva'].includes(k) ? ` (${k === 'inactiva' ? 'sin secuencia' : k})` : ''}`}</option>`; }).join('')}
             </select>${seqMsg}</div>
           <div class="field"><label>Fecha</label><input class="in" type="date" value="${d.fecha}" onchange="A.df('fecha',this.value,true)"></div>
         </div>
@@ -2246,6 +2347,7 @@ A.guardarFactura = async () => {
     .map(it => ({ productoId: it.productoId || '', sku: it.sku || '', descripcion: String(it.descripcion).trim(), cantidad: r2(num(it.cantidad)), precio: r2(num(it.precio)), descuento: Math.min(100, Math.max(0, num(it.descuento))), itbis: num(it.itbis), tipo: it.tipo || (getP(it.productoId)?.tipo) || 'bien' }));
   if (!items.length) return toast('Agrega al menos un ítem con descripción y cantidad.', 'error');
   if (items.some(it => it.precio < 0)) return toast('Los precios no pueden ser negativos.', 'error');
+  if (!d._edit) { const b = bloqueoNCF(emp(), d.tipo); if (b) return toast(b, 'error'); }
   const cli = d.tipo === 'E43' ? null : d.clienteId ? getC(d.clienteId) : null;
   const parte = esEgreso(d.tipo) ? 'proveedor' : 'cliente';
   if (NCF_TIPOS[d.tipo]?.requiereRNC && !(cli && validId(cli.rnc)))
@@ -2304,6 +2406,324 @@ A.guardarFactura = async () => {
     if (!d._edit && esECF(f.tipo)) setTimeout(() => A.enviarECF(f.id), 60);
   } catch (err) { console.error(err); toast(errMsg(err), 'error'); }
   finally { A._saving = false; busy(false); }
+};
+
+/* =========================================================
+   COMPRAS Y GASTOS (comprobantes recibidos de proveedores · formato 606)
+   ========================================================= */
+const TIPOS_606 = {
+  '01': 'Gastos de personal', '02': 'Gastos por trabajos, suministros y servicios', '03': 'Arrendamientos', '04': 'Gastos de activos fijos',
+  '05': 'Gastos de representación', '06': 'Otras deducciones admitidas', '07': 'Gastos financieros', '08': 'Gastos extraordinarios',
+  '09': 'Compras y gastos que forman parte del costo de venta', '10': 'Adquisiciones de activos', '11': 'Gastos de seguros',
+};
+const FORMAS_606 = { '01': 'Efectivo', '02': 'Cheque / transferencia / depósito', '03': 'Tarjeta de crédito / débito', '04': 'Compra a crédito', '05': 'Permuta', '06': 'Nota de crédito', '07': 'Mixto' };
+const RET_ISR_606 = { '': 'Sin retención', '01': 'Alquileres', '02': 'Honorarios por servicios independientes', '03': 'Otras rentas', '04': 'Otras rentas (presuntas)', '05': 'Intereses a personas jurídicas', '06': 'Intereses a personas físicas', '07': 'Retención a proveedores del Estado', '08': 'Juegos telefónicos' };
+const gastos = () => (DB.gastos || []).filter(g => g.empresaId === DB.activeId);
+const getG = id => (DB.gastos || []).find(g => g.id === id);
+function calcG(g) {
+  const base = r2(num(g.servicios) + num(g.bienes));
+  const total = r2(base + num(g.itbis) + num(g.selectivo) + num(g.otros) + num(g.propina));
+  return { base, total, aPagar: r2(total - num(g.itbisRetenido) - num(g.isrRetenido)) };
+}
+const esCompraG = g => g.clase === 'compra';
+const pagadoG = g => g.formaPago !== '04' || !!g.pagado;
+const LG = { q: '', clase: '', estado: '', desde: '', hasta: '' };
+function viewGastos(v) {
+  const e = emp();
+  crumbs([e.nombre, '#/dashboard'], ['Compras y gastos']);
+  if (!LG.desde) { const t = today(); LG.desde = t.slice(0, 8) + '01'; LG.hasta = t; }
+  const enR = gastos().filter(g => g.fecha >= LG.desde && g.fecha <= LG.hasta);
+  const sum = (l, fn) => r2(l.reduce((s, g) => s + fn(g), 0));
+  const pendientes = gastos().filter(g => !pagadoG(g));
+  v.innerHTML = `
+  <div class="page-head"><h1>Compras y gastos</h1><div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn" onclick="A.importarRecibidos()">${icon('down')} Importar e-CF recibidos</button>
+    <button class="btn primary" onclick="A.editarGasto()">${icon('plus')} Registrar compra o gasto</button></div></div>
+  ${DB.sinGastos ? `<div class="alert err mb"><div>Falta activar este módulo: ejecuta <b>supabase/ecf6.sql</b> en Supabase (SQL Editor → Run) y recarga la página.</div></div>` : ''}
+  <div class="grid g4 mb">
+    <div class="card kpi"><div class="l">Compras del período</div><div class="v" style="color:#7e22ce">${money(sum(enR.filter(esCompraG), g => calcG(g).total))}</div><div class="d">${enR.filter(esCompraG).length} comprobantes</div></div>
+    <div class="card kpi"><div class="l">Gastos del período</div><div class="v" style="color:#c2410c">${money(sum(enR.filter(g => !esCompraG(g)), g => calcG(g).total))}</div><div class="d">${enR.filter(g => !esCompraG(g)).length} comprobantes</div></div>
+    <div class="card kpi"><div class="l">ITBIS pagado en compras</div><div class="v">${money(sum(enR, g => num(g.itbis)))}</div><div class="d">Adelantable en el IT-1</div></div>
+    <div class="card kpi"><div class="l">Por pagar a proveedores</div><div class="v" style="color:${pendientes.length ? 'var(--amber)' : 'inherit'}">${money(sum(pendientes, g => calcG(g).aPagar))}</div><div class="d">${pendientes.length} a crédito sin pagar</div></div>
+  </div>
+  <div class="toolbar"><div class="search">${icon('search')}<input placeholder="Buscar por proveedor, RNC, NCF o descripción…" value="${esc(LG.q)}" oninput="A.lg('q',this.value,true)"></div></div>
+  <div class="toolbar">
+    <label class="chip-select"><span>Tipo:</span><select onchange="A.lg('clase',this.value)"><option value="">Compras y gastos</option><option value="compra" ${LG.clase === 'compra' ? 'selected' : ''}>Solo compras</option><option value="gasto" ${LG.clase === 'gasto' ? 'selected' : ''}>Solo gastos</option></select></label>
+    <label class="chip-select"><span>Pago:</span><select onchange="A.lg('estado',this.value)"><option value="">Todos</option><option value="pendiente" ${LG.estado === 'pendiente' ? 'selected' : ''}>Por pagar</option><option value="pagado" ${LG.estado === 'pagado' ? 'selected' : ''}>Pagados</option></select></label>
+    <label class="chip-select"><span>Desde:</span><input type="date" value="${LG.desde}" onchange="A.lg('desde',this.value)"></label>
+    <label class="chip-select"><span>Hasta:</span><input type="date" value="${LG.hasta}" onchange="A.lg('hasta',this.value)"></label>
+  </div>
+  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Proveedor</th><th class="hide-sm">NCF</th><th class="hide-sm">Clasificación</th><th class="right">Total</th><th>Pago</th></tr></thead>
+    <tbody id="lg-body"></tbody></table></div><div class="table-foot" id="lg-foot"></div></div>`;
+  fillGastos();
+}
+A.lg = (k, val, soloLista) => { LG[k] = val; if (soloLista) fillGastos(); else viewGastos($('#view')); };
+function fillGastos() {
+  const q = LG.q.toLowerCase().trim(), qd = digits(q);
+  const list = gastos().filter(g => {
+    if (LG.estado !== 'pendiente' && (g.fecha < LG.desde || g.fecha > LG.hasta)) return false;
+    if (LG.clase && (LG.clase === 'compra') !== esCompraG(g)) return false;
+    if (LG.estado === 'pendiente' && pagadoG(g)) return false;
+    if (LG.estado === 'pagado' && !pagadoG(g)) return false;
+    if (q && ![g.proveedor?.nombre, g.ncf, g.descripcion].join(' ').toLowerCase().includes(q) && !(qd.length >= 3 && digits(g.proveedor?.rnc).includes(qd))) return false;
+    return true;
+  }).sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const body = $('#lg-body'); if (!body) return;
+  body.innerHTML = list.length ? list.map(g => `<tr class="click" onclick="A.editarGasto('${g.id}')">
+    <td class="nowrap">${fdate(g.fecha)}</td>
+    <td>${esc(g.proveedor?.nombre || '—')}<span class="sub">${g.proveedor?.rnc ? esc(fmtId(g.proveedor.rnc)) : 'Sin RNC'}${g.descripcion ? ' · ' + esc(g.descripcion) : ''}</span></td>
+    <td class="mono small hide-sm">${esc(g.ncf || '—')}</td>
+    <td class="hide-sm"><span class="pill ${esCompraG(g) ? 'purple' : 'amber'}">${esCompraG(g) ? 'Compra' : 'Gasto'}</span><span class="sub">${g.tipo606} · ${esc(TIPOS_606[g.tipo606] || '')}</span></td>
+    <td class="right mono">${money(calcG(g).total)}</td>
+    <td>${pagadoG(g) ? '<span class="pill green">Pagado</span>' : `<span class="pill amber">Por pagar</span>`}</td></tr>`).join('')
+    : `<tr><td colspan="6"><div class="empty">${gastos().length ? 'No hay registros con estos filtros.' : 'Aún no has registrado compras ni gastos.'}</div></td></tr>`;
+  $('#lg-foot').innerHTML = `<span>${list.length} registros · Total ${money(r2(list.reduce((s, g) => s + calcG(g).total, 0)))}</span>`;
+}
+A.editarGasto = id => {
+  if (DB.sinGastos) return toast('Primero ejecuta supabase/ecf6.sql en Supabase.', 'error');
+  const g = id ? getG(id) : { fecha: today(), proveedor: { nombre: '', rnc: '' }, ncf: '', ncfModificado: '', clase: 'gasto', tipo606: '02', descripcion: '', servicios: '', bienes: '', itbis: '', itbisRetenido: '', isrTipo: '', isrRetenido: '', selectivo: '', otros: '', propina: '', formaPago: '01', pagado: false, fechaPago: '', notas: '' };
+  const n = v => num(v) ? num(v).toFixed(2) : '';
+  const inp = (name, label, extra = '') => `<div class="field"><label>${label}</label><input class="in" name="${name}" type="number" step="0.01" min="0" value="${n(g[name])}" oninput="A.gastoTotal(this.form)" ${extra}></div>`;
+  modal(id ? 'Editar compra o gasto' : 'Registrar compra o gasto', `
+    <div class="section-title" style="margin-top:0">Proveedor y comprobante</div>
+    <div class="fgrid">
+      ${rncField(g.proveedor?.rnc || '', 'proveedor')}
+      <div class="field" style="grid-column:1/-1"><label>Proveedor *</label><input class="in" name="nombre" value="${esc(g.proveedor?.nombre || '')}" list="prov-list" required>
+        <datalist id="prov-list">${[...new Map(gastos().filter(x => x.proveedor?.nombre).map(x => [x.proveedor.nombre, x.proveedor])).values()].map(p => `<option value="${esc(p.nombre)}">${esc(fmtId(p.rnc || ''))}</option>`).join('')}</datalist></div>
+      <div class="field"><label>NCF del proveedor</label><input class="in mono" name="ncf" value="${esc(g.ncf || '')}" placeholder="B0100000001 o E310000000001" style="text-transform:uppercase"></div>
+      <div class="field"><label>Fecha del comprobante</label><input class="in" name="fecha" type="date" value="${g.fecha}" required></div>
+      <div class="field"><label>Tipo</label><select class="in" name="clase" onchange="this.form.elements.tipo606.value=this.value==='compra'?'09':'02'">
+        <option value="gasto" ${!esCompraG(g) ? 'selected' : ''}>Gasto</option><option value="compra" ${esCompraG(g) ? 'selected' : ''}>Compra (mercancía / costo de venta)</option></select></div>
+      <div class="field"><label>Clasificación 606</label><select class="in" name="tipo606">${Object.entries(TIPOS_606).map(([k, l]) => `<option value="${k}" ${g.tipo606 === k ? 'selected' : ''}>${k} · ${l}</option>`).join('')}</select></div>
+      <div class="field" style="grid-column:1/-1"><label>Descripción</label><input class="in" name="descripcion" value="${esc(g.descripcion || '')}" placeholder="Ej.: Compra de repuestos, factura de luz…"></div>
+      <div class="field"><label>NCF modificado (si es nota de crédito/débito)</label><input class="in mono" name="ncfModificado" value="${esc(g.ncfModificado || '')}" style="text-transform:uppercase"></div>
+    </div>
+    <div class="section-title">Montos</div>
+    <div class="fgrid">
+      ${inp('servicios', 'Monto en servicios (sin ITBIS)')}
+      ${inp('bienes', 'Monto en bienes (sin ITBIS)')}
+      <div class="field"><label>ITBIS facturado</label><div style="display:flex;gap:6px"><input class="in" name="itbis" type="number" step="0.01" min="0" value="${n(g.itbis)}" oninput="A.gastoTotal(this.form)">
+        <button type="button" class="btn sm" onclick="const f=this.form;f.elements.itbis.value=r2((num(f.elements.servicios.value)+num(f.elements.bienes.value))*0.18).toFixed(2);A.gastoTotal(f)">18%</button></div></div>
+      ${inp('propina', 'Propina legal')}
+      ${inp('selectivo', 'Impuesto selectivo')}
+      ${inp('otros', 'Otros impuestos / tasas')}
+    </div>
+    <div class="section-title">Retenciones que tú le hiciste al proveedor</div>
+    <div class="fgrid">
+      ${inp('itbisRetenido', 'ITBIS retenido')}
+      <div class="field"><label>Tipo de retención ISR</label><select class="in" name="isrTipo">${Object.entries(RET_ISR_606).map(([k, l]) => `<option value="${k}" ${(g.isrTipo || '') === k ? 'selected' : ''}>${k ? k + ' · ' : ''}${l}</option>`).join('')}</select></div>
+      ${inp('isrRetenido', 'ISR retenido')}
+    </div>
+    <div class="section-title">Pago</div>
+    <div class="fgrid">
+      <div class="field"><label>Forma de pago</label><select class="in" name="formaPago" onchange="this.form.querySelector('#g-pagado').style.display=this.value==='04'?'':'none'">${Object.entries(FORMAS_606).map(([k, l]) => `<option value="${k}" ${g.formaPago === k ? 'selected' : ''}>${k} · ${l}</option>`).join('')}</select></div>
+      <div class="field" id="g-pagado" style="${g.formaPago === '04' ? '' : 'display:none'}"><label>Pago al proveedor</label>
+        <div style="display:flex;gap:8px;align-items:center"><label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:500"><input type="checkbox" name="pagado" ${g.pagado ? 'checked' : ''}> Ya pagado</label>
+        <input class="in" name="fechaPago" type="date" value="${g.fechaPago || ''}" style="max-width:170px"></div></div>
+      <div class="field" style="grid-column:1/-1"><label>Notas</label><input class="in" name="notas" value="${esc(g.notas || '')}"></div>
+    </div>
+    <div id="g-total" class="alert info mt"></div>
+    ${id && esAdmin() ? `<div style="margin-top:12px"><button type="button" class="btn danger sm" onclick="A.borrarGasto('${id}')">${icon('trash')} Eliminar registro</button></div>` : ''}`, {
+    wide: true, okText: id ? 'Guardar cambios' : 'Registrar', onOk: async form => {
+      const nombre = fv(form, 'nombre'), rnc = digits(fv(form, 'rnc')), ncf = fv(form, 'ncf').toUpperCase().replace(/\s/g, '');
+      if (!nombre) { toast('Escribe el nombre del proveedor.', 'error'); return false; }
+      if (rnc && !validId(rnc)) { toast('El RNC debe tener 9 dígitos o la cédula 11.', 'error'); return false; }
+      if (ncf && !/^(B\d{10}|E\d{12})$/.test(ncf)) { toast('El NCF debe ser como B0100000001 (11 caracteres) o E310000000001 (13).', 'error'); return false; }
+      if (ncf && gastos().some(x => x.id !== id && x.ncf === ncf && digits(x.proveedor?.rnc) === rnc)) { toast(`Ya registraste el NCF ${ncf} de este proveedor.`, 'error'); return false; }
+      const data = {
+        ...(id ? getG(id) : { creado: new Date().toISOString(), creadoPor: SESSION.user.email }),
+        fecha: fv(form, 'fecha') || today(), proveedor: { nombre, rnc }, ncf, ncfModificado: fv(form, 'ncfModificado').toUpperCase(),
+        clase: fv(form, 'clase'), tipo606: fv(form, 'tipo606'), descripcion: fv(form, 'descripcion'),
+        servicios: r2(num(fv(form, 'servicios'))), bienes: r2(num(fv(form, 'bienes'))), itbis: r2(num(fv(form, 'itbis'))), propina: r2(num(fv(form, 'propina'))),
+        selectivo: r2(num(fv(form, 'selectivo'))), otros: r2(num(fv(form, 'otros'))),
+        itbisRetenido: r2(num(fv(form, 'itbisRetenido'))), isrTipo: fv(form, 'isrTipo'), isrRetenido: r2(num(fv(form, 'isrRetenido'))),
+        formaPago: fv(form, 'formaPago'), notas: fv(form, 'notas'),
+      };
+      data.pagado = data.formaPago !== '04' || !!fv(form, 'pagado');
+      data.fechaPago = data.formaPago !== '04' ? data.fecha : data.pagado ? (fv(form, 'fechaPago') || today()) : '';
+      if (calcG(data).total <= 0) { toast('Indica el monto del comprobante.', 'error'); return false; }
+      if ((data.isrRetenido > 0) !== !!data.isrTipo) { toast('Si hay ISR retenido, indica el tipo de retención (y viceversa).', 'error'); return false; }
+      const { id: _i, empresaId: _e, ...limpio } = data;
+      const gid = id || uid();
+      chk(await sb.from('gastos').upsert({ id: gid, empresa_id: DB.activeId, fecha: data.fecha, rnc_proveedor: rnc, ncf, data: limpio }));
+      putCache('gastos', { ...limpio, id: gid, empresaId: DB.activeId });
+      toast(id ? 'Cambios guardados' : 'Registrado', 'ok'); route(true);
+    },
+  });
+  A.gastoTotal($('#modal-root form'));
+};
+A.gastoTotal = form => {
+  const g = {}; ['servicios', 'bienes', 'itbis', 'propina', 'selectivo', 'otros', 'itbisRetenido', 'isrRetenido'].forEach(k => g[k] = form.elements[k].value);
+  const c = calcG(g);
+  $('#g-total').innerHTML = `<div>Total del comprobante <b>${money(c.total)}</b>${c.total !== c.aPagar ? ` · Menos retenciones: a pagar al proveedor <b>${money(c.aPagar)}</b>` : ''}</div>`;
+};
+A.borrarGasto = id => confirmar('Eliminar registro', '¿Eliminar este comprobante de compra o gasto? Dejará de aparecer en el 606 y en los reportes.', async () => {
+  try { chk(await sb.from('gastos').delete().eq('id', id)); DB.gastos = DB.gastos.filter(g => g.id !== id); toast('Eliminado', 'ok'); route(true); }
+  catch (err) { toast(errMsg(err), 'error'); }
+}, { okText: 'Eliminar' });
+
+// Crea compras/gastos a partir de los e-CF que te enviaron tus proveedores (página e-CF recibidos)
+let REC_IMPORT = [];
+A.importarRecibidos = async () => {
+  if (DB.sinGastos) return toast('Primero ejecuta supabase/ecf6.sql en Supabase.', 'error');
+  let rows;
+  try { rows = chk(await sb.from('ecf_recibidos').select('id,rnc_emisor,razon_social_emisor,encf,tipo,fecha_emision,monto_total,total_itbis,xml').eq('empresa_id', DB.activeId).order('recibido_at', { ascending: false })); }
+  catch (err) { return toast(errMsg(err), 'error'); }
+  const ya = new Set(gastos().map(g => digits(g.proveedor?.rnc) + '|' + g.ncf));
+  REC_IMPORT = rows.filter(r => !ya.has(digits(r.rnc_emisor) + '|' + r.encf) && !['E41', 'E43', 'E47'].includes('E' + String(r.tipo || '').replace(/^E/, '')));
+  if (!REC_IMPORT.length) return toast(rows.length ? 'Todos los e-CF recibidos ya están registrados.' : 'No tienes e-CF recibidos.', rows.length ? 'ok' : '');
+  modal('Importar e-CF recibidos', `
+    <div class="alert info mb">Se registrarán como compras o gastos con los montos del XML de cada comprobante. Luego puedes editar cada uno.</div>
+    <div class="fgrid mb">
+      <div class="field"><label>Registrar como</label><select class="in" name="clase" onchange="this.form.elements.tipo606.value=this.value==='compra'?'09':'02'"><option value="gasto">Gasto</option><option value="compra">Compra (mercancía / costo de venta)</option></select></div>
+      <div class="field"><label>Clasificación 606</label><select class="in" name="tipo606">${Object.entries(TIPOS_606).map(([k, l]) => `<option value="${k}" ${k === '02' ? 'selected' : ''}>${k} · ${l}</option>`).join('')}</select></div>
+    </div>
+    <div class="tbl-wrap" style="max-height:320px;overflow:auto"><table><thead><tr><th><input type="checkbox" checked onchange="this.form.querySelectorAll('input[name=rec]').forEach(c=>c.checked=this.checked)"></th><th>Proveedor</th><th>e-NCF</th><th>Fecha</th><th class="right">Total</th></tr></thead><tbody>
+    ${REC_IMPORT.map((r, i) => `<tr><td><input type="checkbox" name="rec" value="${i}" checked></td><td>${esc(r.razon_social_emisor || r.rnc_emisor)}<span class="sub">${esc(fmtId(r.rnc_emisor))}</span></td><td class="mono small">${esc(r.encf)}</td><td class="nowrap">${esc(r.fecha_emision || '')}</td><td class="right mono">${money(r.monto_total)}</td></tr>`).join('')}
+    </tbody></table></div>`, {
+    wide: true, okText: 'Importar seleccionados', onOk: async form => {
+      const sel = [...form.querySelectorAll('input[name=rec]:checked')].map(c => REC_IMPORT[+c.value]);
+      if (!sel.length) { toast('Selecciona al menos uno.', 'error'); return false; }
+      const clase = fv(form, 'clase'), tipo606 = fv(form, 'tipo606');
+      busy(true, 'Importando…'); let n = 0;
+      try {
+        for (const r of sel) {
+          const doc = new DOMParser().parseFromString(r.xml || '', 'application/xml');
+          let servicios = 0, bienes = 0;
+          [...doc.getElementsByTagNameNS('*', 'Item')].forEach(it => { const m = num(xtx(it, 'MontoItem')); if (xtx(it, 'IndicadorBienoServicio') === '2') servicios += m; else bienes += m; });
+          const itbis = num(xtx(doc, 'TotalITBIS')) || num(r.total_itbis);
+          const total = num(xtx(doc, 'MontoTotal')) || num(r.monto_total);
+          // Si el XML trae los precios con ITBIS incluido, la base es el total menos el ITBIS
+          const base = r2(total - itbis - num(xtx(doc, 'MontoImpuestoAdicional')));
+          if (Math.abs(servicios + bienes - base) > 0.05) { const k = base / ((servicios + bienes) || 1); servicios = servicios ? r2(servicios * k) : 0; bienes = r2(base - servicios); }
+          const fecha = fechaISO(xtx(doc, 'FechaEmision') || r.fecha_emision) || today();
+          const credito = xtx(doc, 'TipoPago') === '2';
+          const data = { creado: new Date().toISOString(), creadoPor: SESSION.user.email, origen: 'e-CF recibido',
+            fecha, proveedor: { nombre: r.razon_social_emisor || xtx(doc, 'RazonSocialEmisor') || r.rnc_emisor, rnc: digits(r.rnc_emisor) }, ncf: r.encf, ncfModificado: xtx(doc, 'NCFModificado'),
+            clase, tipo606, descripcion: xtx(doc, 'NombreItem'), servicios: r2(servicios), bienes: r2(bienes), itbis: r2(itbis), propina: 0, selectivo: 0,
+            otros: r2(num(xtx(doc, 'MontoImpuestoAdicional'))), itbisRetenido: 0, isrTipo: '', isrRetenido: 0,
+            formaPago: credito ? '04' : '02', pagado: !credito, fechaPago: credito ? '' : fecha, notas: '' };
+          const gid = uid();
+          chk(await sb.from('gastos').insert({ id: gid, empresa_id: DB.activeId, fecha, rnc_proveedor: data.proveedor.rnc, ncf: data.ncf, data }));
+          putCache('gastos', { ...data, id: gid, empresaId: DB.activeId }); n++;
+        }
+        toast(`${n} comprobantes importados.`, 'ok');
+      } catch (err) { toast(`${n} importados. Error: ${errMsg(err)}`, 'error'); }
+      finally { busy(false); route(true); }
+    },
+  });
+};
+
+/* =========================================================
+   SECUENCIAS NCF (control de comprobantes autorizados)
+   ========================================================= */
+// Alerta cuando quedan pocos comprobantes: lo que configure la empresa o, por defecto, 10 (o el 10% del rango)
+const umbralNCF = (e, s) => num(e.alertaNCF) || Math.max(10, Math.ceil((num(s.hasta) - num(s.desde) + 1) * 0.1) || 10);
+function estadoSeq(e, t) {
+  const s = seqInfo(e, t);
+  if (!s) return { s: null, k: 'inactiva', l: 'Inactiva', c: 'gray' };
+  if (s.vencida) return { s, k: 'vencida', l: 'Vencida', c: 'red' };
+  if (s.restantes === 0) return { s, k: 'agotada', l: 'Agotada', c: 'red' };
+  if (s.restantes !== Infinity && s.restantes <= umbralNCF(e, s)) return { s, k: 'baja', l: 'Por agotarse', c: 'amber' };
+  if (s.vence && daysBetween(today(), s.vence) <= 30) return { s, k: 'porvencer', l: 'Por vencer', c: 'amber' };
+  return { s, k: 'ok', l: 'Disponible', c: 'green' };
+}
+function alertasNCF(e) {
+  return Object.keys(NCF_TIPOS).map(t => ({ t, ...estadoSeq(e, t) })).filter(x => x.s && x.k !== 'ok').map(({ t, s, k }) =>
+    k === 'vencida' ? ['err', `Secuencia ${t} vencida desde ${fdate(s.vence)}: no puedes facturar con ${t}.`]
+    : k === 'agotada' ? ['err', `Secuencia ${t} agotada: no puedes facturar con ${t} hasta registrar una nueva autorización.`]
+    : k === 'baja' ? ['warn', `Secuencia ${t}: quedan solo ${s.restantes} comprobantes.`]
+    : ['warn', `Secuencia ${t} vence el ${fdate(s.vence)}.`]);
+}
+// Bloquea la emisión si la secuencia no permite facturar (además de la validación en la base de datos)
+function bloqueoNCF(e, tipo) {
+  if (!tipo || tipo === TIPO_NONE) return '';
+  const st = estadoSeq(e, tipo);
+  if (st.k === 'inactiva') return `No tienes una secuencia activa de ${tipo}. Regístrala en Secuencias NCF.`;
+  if (st.k === 'vencida') return `La secuencia ${tipo} venció el ${fdate(st.s.vence)}. Solicita una nueva a la DGII y regístrala en Secuencias NCF.`;
+  if (st.k === 'agotada') return `Se agotaron los comprobantes ${tipo} (hasta el ${st.s.hasta}). Solicita una nueva secuencia a la DGII y regístrala en Secuencias NCF.`;
+  return '';
+}
+function viewSecuencias(v) {
+  const e = emp();
+  crumbs([e.nombre, '#/dashboard'], ['Secuencias NCF']);
+  const tipos = Object.keys(NCF_TIPOS);
+  const est = tipos.map(t => ({ t, ...estadoSeq(e, t) }));
+  const activas = est.filter(x => x.s), inactivas = est.filter(x => !x.s);
+  const problemas = activas.filter(x => ['agotada', 'vencida'].includes(x.k)), avisos = activas.filter(x => ['baja', 'porvencer'].includes(x.k));
+  const ncf = (t, n) => t + pad(n, esECF(t) ? 10 : 8);
+  v.innerHTML = `
+  <div class="page-head"><h1>Secuencias NCF</h1>${esAdmin() ? `<button class="btn" onclick="A.alertaNCF()">${icon('gear')} Alerta: ${num(e.alertaNCF) ? `quedan ${num(e.alertaNCF)}` : 'automática'}</button>` : ''}</div>
+  ${problemas.map(x => `<div class="alert err mb"><div><b>${x.t} · ${esc(nombreTipo(x.t))}:</b> ${esc(bloqueoNCF(e, x.t))} <b>No podrás facturar con este tipo hasta entonces.</b></div></div>`).join('')}
+  ${avisos.map(x => `<div class="alert warn mb"><div><b>${x.t}:</b> ${x.k === 'baja' ? `quedan solo <b>${x.s.restantes}</b> comprobantes.` : `la secuencia vence el <b>${fdate(x.s.vence)}</b>.`} Solicita una nueva en la Oficina Virtual de la DGII.</div></div>`).join('')}
+  <div class="grid g3">
+    ${activas.map(({ t, s, l, c }) => {
+      const total = s.hasta ? num(s.hasta) - num(s.desde) + 1 : 0, pct = total ? Math.min(100, Math.round(s.usadas / total * 100)) : 0;
+      const prox = Math.max(num(s.actual) + 1, num(s.desde));
+      return `<div class="card"><div class="card-b">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><span class="tag">${t}</span><div style="font-weight:600;margin-top:6px">${esc(nombreTipo(t))}</div></div><span class="pill ${c}">${l}</span></div>
+        <div style="margin:14px 0 6px;height:8px;border-radius:99px;background:var(--soft);overflow:hidden"><div style="height:100%;width:${pct}%;background:${c === 'green' ? 'var(--primary)' : c === 'amber' ? 'var(--amber)' : 'var(--red)'}"></div></div>
+        <div class="small muted">${s.usadas.toLocaleString('en-US')} usados${total ? ` de ${total.toLocaleString('en-US')}` : ''} · <b style="color:var(--text)">${s.restantes === Infinity ? 'sin límite' : s.restantes.toLocaleString('en-US') + ' disponibles'}</b></div>
+        <dl class="kv small" style="margin:12px 0 0">
+          <dt>Rango</dt><dd class="mono">${ncf(t, s.desde)} – ${s.hasta ? ncf(t, s.hasta) : '…'}</dd>
+          <dt>Próximo</dt><dd class="mono">${s.restantes === 0 ? '—' : ncf(t, prox)}</dd>
+          <dt>Vence</dt><dd>${SIN_VENCE.includes(t) && !s.vence ? 'No aplica' : s.vence ? fdate(s.vence) : '—'}</dd>
+        </dl>
+        ${esAdmin() ? `<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn sm primary" onclick="A.nuevaSecuencia('${t}')">${icon('plus')} Nueva autorización</button><button class="btn sm" onclick="A.nuevaSecuencia('${t}',true)">${icon('edit')} Corregir</button>
+          <button class="btn sm ghost" onclick="A.desactivarSecuencia('${t}')">Desactivar</button></div>` : ''}
+      </div></div>`;
+    }).join('') || `<div class="card" style="grid-column:1/-1"><div class="empty">No tienes secuencias activas. Registra las que te autorizó la DGII.</div></div>`}
+  </div>
+  ${inactivas.length && esAdmin() ? `<div class="card mt"><div class="card-h">Otros tipos de comprobante (inactivos)</div><div class="card-b" style="display:flex;gap:8px;flex-wrap:wrap">
+    ${inactivas.map(({ t }) => `<button class="btn sm" onclick="A.nuevaSecuencia('${t}')">${icon('plus')} ${t} · ${esc(nombreTipo(t))}</button>`).join('')}</div></div>` : ''}
+  ${(e.historialNCF || []).length ? `<div class="card mt"><div class="card-h">Historial de autorizaciones</div><div class="tbl-wrap"><table><thead><tr><th>Registrada</th><th>Tipo</th><th>Rango</th><th>Vence</th><th>Autorización DGII</th></tr></thead><tbody>
+    ${e.historialNCF.slice().reverse().map(h => `<tr><td class="nowrap">${fdate(h.fecha)}</td><td><span class="tag">${h.tipo}</span></td><td class="mono small">${ncf(h.tipo, h.desde)} – ${h.hasta ? ncf(h.tipo, h.hasta) : '…'}</td><td>${h.vence ? fdate(h.vence) : '—'}</td><td class="mono small">${esc(h.autorizacion || '—')}</td></tr>`).join('')}
+  </tbody></table></div></div>` : ''}`;
+}
+A.nuevaSecuencia = (t, corregir) => {
+  const e = emp(), s = e.secuencias?.[t] || {};
+  const actual = corregir ? s : { desde: '', hasta: '', actual: '', vence: SIN_VENCE.includes(t) ? '' : `${new Date().getFullYear() + 1}-12-31` };
+  modal(`${corregir ? 'Corregir' : 'Nueva autorización'} · ${t} ${esc(nombreTipo(t))}`, `
+    ${corregir ? '' : `<div class="alert info mb"><div>Escribe el rango que te aprobó la DGII (por ejemplo, del <span class="mono">${t}${pad(1, esECF(t) ? 10 : 8)}</span> al <span class="mono">${t}${pad(50, esECF(t) ? 10 : 8)}</span> → desde 1, hasta 50). La numeración continuará desde "Desde".</div></div>`}
+    <div class="fgrid">
+      <div class="field"><label>Desde (número)</label><input class="in" name="desde" type="number" min="1" value="${actual.desde ?? ''}" required></div>
+      <div class="field"><label>Hasta (número)</label><input class="in" name="hasta" type="number" min="1" value="${actual.hasta ?? ''}" required></div>
+      ${corregir ? `<div class="field"><label>Último usado</label><input class="in" name="actual" type="number" min="0" value="${s.actual ?? 0}"><span class="hint small muted">0 si no has usado ninguno.</span></div>` : ''}
+      <div class="field"><label>Vence</label><input class="in" name="vence" type="date" value="${actual.vence || ''}"></div>
+      ${corregir ? '' : `<div class="field"><label>No. de autorización DGII (opcional)</label><input class="in" name="autorizacion"></div>`}
+    </div>`, {
+    okText: 'Guardar', onOk: async form => {
+      const desde = num(fv(form, 'desde')), hasta = num(fv(form, 'hasta')), vence = fv(form, 'vence');
+      if (!(desde >= 1) || !(hasta >= desde)) { toast('"Hasta" debe ser mayor o igual que "Desde".', 'error'); return false; }
+      if (!vence && !SIN_VENCE.includes(t)) { toast('Indica la fecha de vencimiento.', 'error'); return false; }
+      if (String(hasta).length > (esECF(t) ? 10 : 8)) { toast('El número excede los dígitos del comprobante.', 'error'); return false; }
+      // Una autorización nueva no puede reusar números ya emitidos de la anterior
+      if (!corregir && s.activo && desde <= num(s.actual) && hasta >= num(s.desde)) { toast(`El rango choca con números ya usados (hasta el ${s.actual}).`, 'error'); return false; }
+      const nueva = { activo: true, desde, hasta, actual: corregir ? num(fv(form, 'actual')) : desde - 1, vence };
+      chk(await sb.from('secuencias').upsert(seqRow(e.id, t, nueva), { onConflict: 'empresa_id,tipo' }));
+      if (!corregir) {
+        const historialNCF = [...(e.historialNCF || []), { fecha: today(), tipo: t, desde, hasta, vence, autorizacion: fv(form, 'autorizacion') }];
+        chk(await sb.from('empresas').update({ data: { ...empresaData(e), historialNCF } }).eq('id', e.id));
+      }
+      await reloadEmpresa(e.id);
+      toast(`Secuencia ${t} guardada`, 'ok'); route(true);
+    },
+  });
+};
+A.desactivarSecuencia = t => confirmar('Desactivar ' + t, `Ya no podrás emitir comprobantes ${t} hasta que registres una nueva autorización. ¿Continuar?`, async () => {
+  const e = emp(), s = { ...(e.secuencias?.[t] || {}), activo: false };
+  chk(await sb.from('secuencias').upsert(seqRow(e.id, t, s), { onConflict: 'empresa_id,tipo' }));
+  await reloadEmpresa(e.id); route(true);
+}, { okText: 'Desactivar' });
+A.alertaNCF = () => {
+  const e = emp();
+  modal('Alerta de comprobantes', `<div class="field"><label>Avisarme cuando queden (comprobantes)</label><input class="in" name="n" type="number" min="0" value="${num(e.alertaNCF) || ''}" placeholder="Automático: 10 o el 10% del rango"></div>
+    <div class="hint small muted">El aviso aparece en el Dashboard, en Facturas y aquí. Al llegar a 0 la app no deja emitir ese tipo.</div>`, {
+    onOk: async form => {
+      chk(await sb.from('empresas').update({ data: { ...empresaData(e), alertaNCF: num(fv(form, 'n')) } }).eq('id', e.id));
+      await reloadEmpresa(e.id); route(true);
+    },
+  });
 };
 
 /* =========================================================
@@ -2522,7 +2942,7 @@ function viewReportes(v) {
   const e = emp();
   crumbs([e.nombre, '#/dashboard'], ['Reportes']);
   if (!LR.desde) { const t = today(); LR.desde = t.slice(0, 8) + '01'; LR.hasta = t; }
-  const tabs = [['resumen', 'Resumen de ventas'], ['607', 'Ventas 607'], ['608', 'Anulados 608'], ['cxc', 'Cuentas por cobrar'], ['productos', 'Por producto']];
+  const tabs = [['resumen', 'Resumen de ventas'], ['607', 'Ventas 607'], ['606', 'Compras 606'], ['608', 'Anulados 608'], ['cxc', 'Cuentas por cobrar'], ['productos', 'Por producto'], ['rst', 'RST · Estimado DGII']];
   v.innerHTML = `
   <div class="page-head"><h1>Reportes</h1></div>
   <div class="toolbar">
@@ -2534,8 +2954,106 @@ function viewReportes(v) {
   <div class="tabs">${tabs.map(([k, l]) => `<button class="${LR.tab === k ? 'active' : ''}" onclick="A.lr('tab','${k}')">${l}</button>`).join('')}</div>
   <div id="rep"></div>`;
   const rep = $('#rep');
-  ({ resumen: repResumen, 607: rep607, 608: rep608, cxc: repCxC, productos: repProductos })[LR.tab](rep);
+  ({ resumen: repResumen, 607: rep607, 606: rep606, 608: rep608, cxc: repCxC, productos: repProductos, rst: repRST })[LR.tab](rep);
 }
+
+/* ---------- RST (Régimen Simplificado de Tributación): estimado del impuesto anual ----------
+   Fórmulas de la calculadora RST de la DGII (verificadas con sus resultados para 2026):
+   · Ingresos, persona física: renta neta = 60% de los ingresos → escala del ISR de personas físicas. 2 cuotas.
+   · Ingresos, persona jurídica: 7% de los ingresos. 4 cuotas.
+   · Compras: renta neta = compras × margen bruto → escala sin exención; ITBIS = compras × margen × 18% × base gravada. 4 cuotas. */
+const RST_MARGEN_DEF = 8.38;
+// Tramos [desde, monto fijo, tasa sobre el excedente], tal como los aplica la DGII
+const RST_ESCALA_PF = [[0, 0, 0], [416220.01, 0, 0.15], [624329.01, 31216, 0.20], [867123.01, 79776, 0.25]];
+const RST_ESCALA_COMPRAS = [[0, 0, 0.15], [208109.01, 31216.35, 0.20], [450903.01, 79775.15, 0.25]];
+function isrEscala(renta, escala) {
+  const [desde, fijo, tasa] = escala.filter(t => renta >= t[0]).pop();
+  return r2(fijo + (renta - desde) * tasa);
+}
+function rstCalcular({ modo, persona, monto, margen, baseItbis }) {
+  monto = Math.max(0, num(monto));
+  if (modo === 'compras') {
+    const renta = r2(monto * margen / 100), isr = isrEscala(renta, RST_ESCALA_COMPRAS);
+    const itbis = r2(renta * 0.18 * baseItbis / 100);
+    return { renta, isr, itbis, total: r2(isr + itbis), cuotas: 4 };
+  }
+  if (persona === 'pj') { const isr = r2(monto * 0.07); return { renta: null, isr, itbis: 0, total: isr, cuotas: 4 }; }
+  const renta = r2(monto * 0.60), isr = isrEscala(renta, RST_ESCALA_PF);
+  return { renta, isr, itbis: 0, total: isr, cuotas: 2 };
+}
+const LRST = {};
+function repRST(el) {
+  const e = emp(), hoy = today(), anioAct = +hoy.slice(0, 4);
+  const anio = LRST.anio || anioAct;
+  const modo = LRST.modo || (e.regimen === 'rst_compras' ? 'compras' : 'ingresos');
+  const persona = LRST.persona || e.rstPersona || (digits(e.rnc).length === 9 ? 'pj' : 'pf');
+  const margen = num(e.rstMargen ?? RST_MARGEN_DEF), baseItbis = num(e.rstBaseItbis ?? 100);
+  const delAnio = f => f.fecha.slice(0, 4) === String(anio) && vigente(f);
+  // Ingresos: ventas sin ITBIS (las notas de crédito restan). Compras: lo guardado en la empresa o, si no, los e-CF de compras/gastos.
+  const ventas = facturas().filter(f => delAnio(f) && !esEgreso(f.tipo));
+  const ingresos = r2(ventas.reduce((s, f) => s + signo(f) * calc(f).base, 0));
+  const itbisVentas = r2(ventas.reduce((s, f) => s + signo(f) * calc(f).itbis, 0));
+  const comprasApp = r2(facturas().filter(f => delAnio(f) && esEgreso(f.tipo)).reduce((s, f) => s + calc(f).base, 0)
+    + gastos().filter(g => g.fecha.slice(0, 4) === String(anio) && esCompraG(g)).reduce((s, g) => s + calcG(g).base, 0));
+  const comprasGuard = e.rstCompras?.[anio];
+  const compras = comprasGuard != null ? num(comprasGuard) : comprasApp;
+  const base = modo === 'compras' ? compras : ingresos;
+  // Proyección al cierre: lo acumulado entre la fracción del año transcurrida
+  const fin = new Date(anio, 11, 31), ini = new Date(anio, 0, 1);
+  // Las compras escritas a mano se toman como el total del año (sin proyectar)
+  const frac = anio < anioAct || (modo === 'compras' && comprasGuard != null) ? 1 : Math.min(1, (new Date(hoy + 'T12:00:00') - ini) / (fin - ini + 864e5));
+  const proy = frac > 0 && frac < 1 ? r2(base / frac) : base;
+  const sim = LRST.sim != null ? num(LRST.sim) : null;
+  const params = { modo, persona, margen, baseItbis };
+  const cols = [['Acumulado ' + (anio === anioAct ? 'a la fecha' : anio), base], ...(frac > 0 && frac < 1 ? [['Proyectado al cierre de ' + anio, proy]] : []), ...(sim != null ? [['Simulación', sim]] : [])]
+    .map(([l, m]) => ({ l, m, r: rstCalcular({ ...params, monto: m }) }));
+  const etiqueta = modo === 'compras' ? 'Compras' : 'Ingresos';
+  const fila = (l, fn, fuerte) => `<tr${fuerte ? ' style="font-weight:700"' : ''}><td>${l}</td>${cols.map(c => `<td class="right">${fn(c)}</td>`).join('')}</tr>`;
+  const noRST = !String(e.regimen || '').startsWith('rst');
+  el.innerHTML = `
+  ${noRST ? `<div class="alert warn mb"><div>Esta empresa está en el <b>régimen ordinario</b>. Puedes usar este cálculo como simulación; para marcarla como RST ve a <b>Empresas → Editar → Régimen tributario</b>.</div></div>` : ''}
+  <div class="toolbar">
+    <label class="chip-select"><span>Año fiscal:</span><select onchange="A.rst('anio',+this.value)">${[anioAct, anioAct - 1, anioAct - 2].map(y => `<option ${y === anio ? 'selected' : ''}>${y}</option>`).join('')}</select></label>
+    <label class="chip-select"><span>Modalidad:</span><select onchange="A.rst('modo',this.value)"><option value="ingresos" ${modo === 'ingresos' ? 'selected' : ''}>Basado en ingresos</option><option value="compras" ${modo === 'compras' ? 'selected' : ''}>Basado en compras</option></select></label>
+    ${modo === 'ingresos' ? `<label class="chip-select"><span>Contribuyente:</span><select onchange="A.rst('persona',this.value)"><option value="pf" ${persona === 'pf' ? 'selected' : ''}>Persona física</option><option value="pj" ${persona === 'pj' ? 'selected' : ''}>Persona jurídica</option></select></label>` : ''}
+  </div>
+  <div class="grid g4 mb">
+    <div class="card kpi"><div class="l">${etiqueta} ${anio === anioAct ? 'a la fecha' : anio}</div><div class="v">${money(base)}</div>${modo === 'ingresos' ? `<div class="d">${ventas.length} documentos · sin ITBIS</div>` : `<div class="d">${comprasGuard != null ? 'Monto registrado manualmente' : 'Según compras/gastos en la app'}</div>`}</div>
+    ${frac > 0 && frac < 1 ? `<div class="card kpi"><div class="l">Proyectado al cierre</div><div class="v">${money(proy)}</div><div class="d">${Math.round(frac * 100)}% del año transcurrido</div></div>` : ''}
+    ${(() => { const r = cols[frac > 0 && frac < 1 ? 1 : 0].r; return `<div class="card kpi"><div class="l">Estimado a pagar ${frac > 0 && frac < 1 ? '(proyectado)' : ''}</div><div class="v">${money(r.total)}</div><div class="d">${r.cuotas} cuotas de ${money(r2(r.total / r.cuotas))}</div></div>`; })()}
+    ${modo === 'ingresos' ? `<div class="card kpi"><div class="l">ITBIS facturado ${anio}</div><div class="v">${money(itbisVentas)}</div><div class="d">Se declara aparte (IT-1 mensual)</div></div>` : ''}
+  </div>
+  <div class="grid" style="grid-template-columns:2fr 1fr">
+    <div class="card"><div class="card-h">Cálculo RST · ${modo === 'compras' ? 'basado en compras' : `basado en ingresos · ${persona === 'pj' ? 'persona jurídica' : 'persona física'}`}</div>
+      <div class="tbl-wrap"><table><thead><tr><th></th>${cols.map(c => `<th class="right">${esc(c.l)}</th>`).join('')}</tr></thead><tbody>
+        ${fila(etiqueta, c => money(c.m))}
+        ${modo === 'compras' ? fila(`Renta neta imponible (margen ${margen}%)`, c => money(c.r.renta)) : persona === 'pf' ? fila('Renta neta (60% de los ingresos)', c => money(c.r.renta)) : ''}
+        ${fila(modo === 'ingresos' && persona === 'pj' ? 'ISR (7% de los ingresos)' : 'ISR según escala', c => money(c.r.isr))}
+        ${modo === 'compras' ? fila(`ITBIS (18% del margen · base gravada ${baseItbis}%)`, c => money(c.r.itbis)) : ''}
+        ${fila('Total estimado a pagar', c => money(c.r.total), true)}
+        ${fila(`Cada cuota (${cols[0].r.cuotas})`, c => money(r2(c.r.total / c.r.cuotas)))}
+      </tbody></table></div></div>
+    <div class="card"><div class="card-h">Ajustar datos</div><div class="card-b">
+      ${modo === 'compras' ? `<div class="field"><label>Compras del año ${anio} (RD$)</label><input class="in" id="rst-compras-in" type="number" step="0.01" min="0" value="${comprasGuard != null ? num(comprasGuard).toFixed(2) : ''}" placeholder="${comprasApp.toFixed(2)}">
+        <span class="hint small muted">La app no registra todas tus compras: escribe el total de compras del año completo (o tu estimado), según tu formato 606.</span></div>
+        <button class="btn sm mb" onclick="A.rstGuardarCompras(${anio})">${icon('edit')} Guardar compras</button>` : ''}
+      <div class="field"><label>Simular con otro monto de ${etiqueta.toLowerCase()} (RD$)</label><input class="in" id="rst-sim" type="number" step="0.01" min="0" value="${sim != null ? sim : ''}" placeholder="Ej.: 2500000"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" onclick="A.rst('sim',$('#rst-sim').value===''?null:+$('#rst-sim').value)">Simular</button>${sim != null ? `<button class="btn sm ghost" onclick="A.rst('sim',null)">Quitar</button>` : ''}</div>
+    </div></div>
+  </div>
+  <div class="hint small muted mt">Estimado con las fórmulas de la <a href="https://dgii.gov.do/herramientas/calculadoras/Paginas/calculadoraRST.aspx" target="_blank" rel="noopener" style="text-decoration:underline">calculadora RST de la DGII</a> (escala 2026). No considera las retenciones de ISR que te hayan hecho ni anticipos pagados; el monto oficial es el de tu declaración en la Oficina Virtual.</div>`;
+}
+A.rst = (k, v) => { LRST[k] = v; repRST($('#rep')); };
+A.rstGuardarCompras = async anio => {
+  const e = emp(), v = $('#rst-compras-in').value;
+  if (!esAdmin()) return toast('Solo el dueño o un administrador puede guardar este dato.', 'error');
+  const rstCompras = { ...(e.rstCompras || {}) };
+  if (v === '') delete rstCompras[anio]; else rstCompras[anio] = r2(num(v));
+  try {
+    chk(await sb.from('empresas').update({ data: { ...empresaData(e), rstCompras } }).eq('id', e.id));
+    e.rstCompras = rstCompras; toast('Compras guardadas', 'ok'); repRST($('#rep'));
+  } catch (err) { toast(errMsg(err), 'error'); }
+};
 A.lr = (k, val) => { LR[k] = val; viewReportes($('#view')); };
 A.lrPeriodo = p => {
   const d = new Date(), y = d.getFullYear(), m = d.getMonth();
@@ -2615,6 +3133,47 @@ A.csv607 = () => {
     ...rows.map(r => [r.rnc, r.tipoId, r.f.ncf, r.ncfMod, '01', r.f.fecha.replace(/-/g, ''), r.fechaRet.replace(/-/g, ''), r.t.base.toFixed(2), r.t.itbis.toFixed(2),
       r.ret.itbis ? r.ret.itbis.toFixed(2) : '', '', r.ret.isr ? r.ret.isr.toFixed(2) : '', '', '', '', r.t.propina.toFixed(2),
       r2(r.pm.Efectivo).toFixed(2), r2(r.pm['Cheque/Transferencia']).toFixed(2), r2(r.pm.Tarjeta).toFixed(2), r.credito.toFixed(2), '', '', r2(r.pm.Otro).toFixed(2)])]);
+};
+// Formato 606: compras y gastos con NCF del período (módulo Compras y gastos)
+function rows606() {
+  // Los e-CF de compras (E41), gastos menores (E43) y pagos al exterior (E47) que emite la app también van al 606
+  const propios = facturas().filter(f => esEgreso(f.tipo) && vigente(f) && f.ncf && enRango(f)).map(f => {
+    const t = calc(f), r = retenciones(f) || { itbis: 0, isr: 0 };
+    const serv = r2((f.items || []).filter(it => it.tipo === 'servicio').reduce((s, it) => { const b = num(it.cantidad) * num(it.precio); return s + b - b * num(it.descuento) / 100; }, 0));
+    const c = f.cliente || {};
+    return { id: null, factura: f.id, fecha: f.fecha, ncf: f.ncf, proveedor: { nombre: c.nombre, rnc: c.rnc }, tipo606: f.tipo === 'E41' ? '09' : '02',
+      servicios: serv, bienes: r2(t.base - serv), itbis: t.itbis, itbisRetenido: r.itbis, isrTipo: r.isr ? (f.tipo === 'E47' ? '03' : '02') : '', isrRetenido: r.isr,
+      propina: t.propina, formaPago: f.condicion === 'credito' ? '04' : '01', pagado: true, fechaPago: f.fecha };
+  });
+  return [...gastos().filter(g => g.ncf && g.fecha >= LR.desde && g.fecha <= LR.hasta), ...propios].sort((a, b) => a.fecha.localeCompare(b.fecha)).map(g => {
+    const rnc = digits(g.proveedor?.rnc), c = calcG(g);
+    return { g, rnc, tipoId: rnc.length === 9 ? '1' : rnc.length === 11 ? '2' : '', c };
+  });
+}
+function rep606(el) {
+  const rows = rows606(), sinNcf = gastos().filter(g => !g.ncf && g.fecha >= LR.desde && g.fecha <= LR.hasta).length;
+  const tot = k => r2(rows.reduce((s, r) => s + num(r.g[k]), 0));
+  el.innerHTML = `
+  <div class="alert info mb"><div>Compras y gastos con NCF del período, con las columnas del formato 606 de la DGII. Se llenan desde <a href="#/gastos" style="text-decoration:underline">Compras y gastos</a>.${sinNcf ? ` <b>${sinNcf} registros sin NCF no se incluyen.</b>` : ''}</div></div>
+  <div class="grid g4 mb">
+    <div class="card kpi"><div class="l">Total facturado</div><div class="v">${money(r2(rows.reduce((s, r) => s + r.c.base, 0)))}</div><div class="d">${rows.length} comprobantes · sin ITBIS</div></div>
+    <div class="card kpi"><div class="l">ITBIS facturado</div><div class="v">${money(tot('itbis'))}</div><div class="d">Adelantable en el IT-1</div></div>
+    <div class="card kpi"><div class="l">ITBIS retenido</div><div class="v">${money(tot('itbisRetenido'))}</div><div class="d">A pagar en el IR-17</div></div>
+    <div class="card kpi"><div class="l">ISR retenido</div><div class="v">${money(tot('isrRetenido'))}</div><div class="d">A pagar en el IR-17</div></div>
+  </div>
+  <div class="card"><div class="card-h">${rows.length} comprobantes<span class="sp"></span><button class="btn sm" onclick="A.csv606()">${icon('down')} Exportar CSV</button></div>
+  <div class="tbl-wrap"><table><thead><tr><th>RNC/Cédula</th><th>Tipo</th><th>NCF</th><th>Fecha</th><th class="right">Servicios</th><th class="right">Bienes</th><th class="right">ITBIS</th><th class="right">ITBIS ret.</th><th class="right">ISR ret.</th><th>Pago</th></tr></thead><tbody>
+  ${rows.length ? rows.map(r => `<tr class="click" onclick="${r.g.factura ? `location.hash='#/facturas/${r.g.factura}'` : `A.editarGasto('${r.g.id}')`}"><td class="mono small">${esc(r.rnc || '—')}<span class="sub">${esc(r.g.proveedor?.nombre || '')}</span></td><td>${r.g.tipo606}</td><td class="mono small">${esc(r.g.ncf)}</td><td class="nowrap">${fdate(r.g.fecha)}</td>
+    <td class="right">${money(r.g.servicios)}</td><td class="right">${money(r.g.bienes)}</td><td class="right">${money(r.g.itbis)}</td><td class="right">${num(r.g.itbisRetenido) ? money(r.g.itbisRetenido) : '—'}</td><td class="right">${num(r.g.isrRetenido) ? money(r.g.isrRetenido) : '—'}</td><td>${r.g.formaPago}</td></tr>`).join('')
+    : `<tr><td colspan="10"><div class="empty">Sin compras ni gastos con NCF en el período.</div></td></tr>`}
+  </tbody></table></div></div>`;
+}
+A.csv606 = () => {
+  const f8 = s => (s || '').replace(/-/g, '');
+  downloadCSV(fname('606'), [['RNC o Cédula', 'Tipo Id', 'Tipo Bienes y Servicios Comprados', 'NCF', 'NCF o Documento Modificado', 'Fecha Comprobante', 'Fecha Pago', 'Monto Facturado en Servicios', 'Monto Facturado en Bienes', 'Total Monto Facturado', 'ITBIS Facturado', 'ITBIS Retenido', 'ITBIS sujeto a Proporcionalidad', 'ITBIS llevado al Costo', 'ITBIS por Adelantar', 'ITBIS percibido en compras', 'Tipo de Retención en ISR', 'Monto Retención Renta', 'ISR Percibido en compras', 'Impuesto Selectivo al Consumo', 'Otros Impuesto/Tasas', 'Monto Propina Legal', 'Forma de Pago'],
+    ...rows606().map(({ g, rnc, tipoId, c }) => [rnc, tipoId, g.tipo606, g.ncf, g.ncfModificado || '', f8(g.fecha), f8(g.pagado ? g.fechaPago : ''),
+      num(g.servicios).toFixed(2), num(g.bienes).toFixed(2), c.base.toFixed(2), num(g.itbis).toFixed(2), num(g.itbisRetenido) ? num(g.itbisRetenido).toFixed(2) : '', '', '', num(g.itbis).toFixed(2), '',
+      g.isrTipo || '', num(g.isrRetenido) ? num(g.isrRetenido).toFixed(2) : '', '', num(g.selectivo) ? num(g.selectivo).toFixed(2) : '', num(g.otros) ? num(g.otros).toFixed(2) : '', num(g.propina) ? num(g.propina).toFixed(2) : '', g.formaPago])]);
 };
 function rep608(el) {
   const rows = facturas().filter(f => f.estado === 'anulada' && f.ncf && f.anulada && f.anulada.fecha >= LR.desde && f.anulada.fecha <= LR.hasta)
@@ -2718,6 +3277,8 @@ A.editarEmpresa = id => {
           <input type="file" accept="image/*" onchange="A.logoFile(this)">
           <button type="button" class="btn sm" onclick="A.logoClear()">Quitar</button>
         </div></div>
+      <div class="field"><label>Tamaño del logo en las facturas</label><select class="in" name="logoTam">
+        ${[['S', 'S · Pequeño'], ['M', 'M · Mediano'], ['G', 'G · Grande']].map(([k, l]) => `<option value="${k}" ${(e.logoTam || 'M') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     </div>
     <div class="section-title">Facturación</div>
     <div class="fgrid">
@@ -2727,6 +3288,17 @@ A.editarEmpresa = id => {
       <div class="field"><label>Condición predeterminada</label><select class="in" name="condicionPredeterminada"><option value="contado" ${e.condicionPredeterminada !== 'credito' ? 'selected' : ''}>Contado</option><option value="credito" ${e.condicionPredeterminada === 'credito' ? 'selected' : ''}>Crédito</option></select></div>
       <div class="field"><label>ITBIS predeterminado</label><select class="in" name="itbisPredeterminado">${ITBIS_TASAS.map(t => `<option value="${t}" ${num(e.itbisPredeterminado ?? 18) === t ? 'selected' : ''}>${t ? t + '%' : 'Exento / 0%'}</option>`).join('')}</select></div>
       <div class="field" style="grid-column:1/-1"><label>Nota al pie (predeterminada en cada factura)</label><textarea class="in" name="notaPie" rows="2" placeholder="Ej.: Gracias por su compra. Cuentas bancarias: …">${esc(e.notaPie || '')}</textarea></div>
+    </div>
+    <div class="section-title">Régimen tributario</div>
+    <div class="fgrid">
+      <div class="field"><label>Régimen</label><select class="in" name="regimen" onchange="this.form.querySelector('#rst-compras').style.display=this.value==='rst_compras'?'':'none';this.form.querySelector('#rst-persona').style.display=this.value==='ordinario'?'none':''">
+        ${[['ordinario', 'Ordinario'], ['rst_ingresos', 'RST · Basado en ingresos'], ['rst_compras', 'RST · Basado en compras']].map(([k, l]) => `<option value="${k}" ${(e.regimen || 'ordinario') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="field" id="rst-persona" style="${(e.regimen || 'ordinario') === 'ordinario' ? 'display:none' : ''}"><label>Tipo de contribuyente</label><select class="in" name="rstPersona">
+        ${[['', 'Según RNC/cédula'], ['pf', 'Persona física'], ['pj', 'Persona jurídica']].map(([k, l]) => `<option value="${k}" ${(e.rstPersona || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div id="rst-compras" class="fgrid" style="grid-column:1/-1;${e.regimen === 'rst_compras' ? '' : 'display:none'}">
+        <div class="field"><label>Margen bruto de comercialización (%)</label><input class="in" name="rstMargen" type="number" step="0.01" min="0" value="${e.rstMargen ?? RST_MARGEN_DEF}"><span class="hint small muted">Según tu actividad (la DGII lo indica; ${RST_MARGEN_DEF}% por defecto).</span></div>
+        <div class="field"><label>Base gravada de ITBIS (%)</label><input class="in" name="rstBaseItbis" type="number" step="1" min="0" max="100" value="${e.rstBaseItbis ?? 100}"><span class="hint small muted">100% si todo lo que vendes lleva ITBIS.</span></div>
+      </div>
     </div>
     <div class="section-title">Secuencias de NCF autorizadas por la DGII</div>
     <div class="tbl-wrap"><table class="seq-tbl"><thead><tr><th>Activa</th><th>Tipo</th><th>Desde</th><th>Hasta</th><th>Último usado</th><th>Vence</th></tr></thead><tbody>
@@ -2754,9 +3326,11 @@ A.editarEmpresa = id => {
         }
         const data = {
           nombre, rnc, razonSocial: fv(form, 'razonSocial'), actividad: fv(form, 'actividad'), estadoDGII: fv(form, 'estadoDGII'), telefono: fv(form, 'telefono'), email: fv(form, 'email'), web: fv(form, 'web'), direccion: fv(form, 'direccion'),
-          logo: logoTmp || '', prefijo: fv(form, 'prefijo') || 'INV', proximoNumero: Math.max(1, num(fv(form, 'proximoNumero'))),
+          logo: logoTmp || '', logoTam: fv(form, 'logoTam') || 'M', prefijo: fv(form, 'prefijo') || 'INV', proximoNumero: Math.max(1, num(fv(form, 'proximoNumero'))),
           tipoPredeterminado: fv(form, 'tipoPredeterminado'), condicionPredeterminada: fv(form, 'condicionPredeterminada'),
           itbisPredeterminado: num(fv(form, 'itbisPredeterminado')), notaPie: fv(form, 'notaPie'), secuencias,
+          regimen: fv(form, 'regimen') || 'ordinario', rstPersona: fv(form, 'rstPersona'),
+          rstMargen: num(fv(form, 'rstMargen')) || RST_MARGEN_DEF, rstBaseItbis: Math.min(100, Math.max(0, num(fv(form, 'rstBaseItbis')))),
         };
         const { proximoNumero, secuencias: seqs, ...resto } = data;
         let eid = id;
@@ -2823,7 +3397,7 @@ A.logoFile = input => {
   fr.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const max = 360, k = Math.min(1, max / Math.max(img.width, img.height));
+      const max = 600, k = Math.min(1, max / Math.max(img.width, img.height));
       const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
       logoTmp = c.toDataURL('image/png');
@@ -2977,7 +3551,7 @@ function cartaHTML(f) {
   const sal = saldo(f);
   return `<div class="p-doc">
   <div class="p-head">
-    <div class="p-emp">${e.logo ? `<img src="${e.logo}" alt="">` : ''}<div>
+    <div class="p-emp">${e.logo ? `<img src="${e.logo}" alt="" class="logo-${e.logoTam || 'M'}">` : ''}<div>
       <h2>${esc(e.nombre)}</h2>
       <div>${e.razonSocial && e.razonSocial !== e.nombre ? esc(e.razonSocial) + '<br>' : ''}RNC: ${esc(fmtId(e.rnc))}<br>
       ${e.direccion ? esc(e.direccion) + '<br>' : ''}${[e.telefono, e.email, e.web].filter(Boolean).map(esc).join(' · ')}</div></div></div>
@@ -3021,7 +3595,7 @@ function ticketHTML(f) {
   const e = DB.empresas.find(x => x.id === f.empresaId), t = calc(f), c = f.cliente || {};
   const afect = f.facturaAfectadaId ? getF(f.facturaAfectadaId) : null;
   return `<div class="p-doc">
-  <div class="tk">${e.logo ? `<img src="${e.logo}" alt=""><br>` : ''}<h2>${esc(e.nombre)}</h2>
+  <div class="tk">${e.logo ? `<img src="${e.logo}" alt="" class="logo-${e.logoTam || 'M'}"><br>` : ''}<h2>${esc(e.nombre)}</h2>
     RNC: ${esc(fmtId(e.rnc))}<br>${e.direccion ? esc(e.direccion) + '<br>' : ''}${e.telefono ? esc(e.telefono) : ''}</div>
   <div class="tk-line"></div>
   <div class="tk"><b>${tituloDoc(f)}</b></div>
