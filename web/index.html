@@ -1652,26 +1652,65 @@ let RECIBIDOS = null;
 async function viewRecibidos(v) {
   const e = emp();
   crumbs([e.nombre, '#/dashboard'], ['e-CF recibidos']);
-  v.innerHTML = `<div class="page-head"><h1>e-CF recibidos</h1><button class="btn" onclick="RECIBIDOS=null;route(true)">${icon('undo')} Actualizar</button></div>
-    <div class="alert info mb"><div>Comprobantes electrónicos que tus proveedores (o la DGII en la certificación) envían al RNC <b>${esc(fmtId(e.rnc))}</b> a través de
-      <span class="mono small">https://facturacion-rd.ipmplaza.workers.dev/fe/recepcion/api/ecf</span>. Desde aquí das la <b>aprobación comercial</b>, que se firma y se envía a la DGII.</div></div>
+  v.innerHTML = `<div class="page-head"><h1>e-CF recibidos</h1><div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="A.importarRecibidos()">${icon('down')} Pasar a Compras y gastos</button>
+      <button class="btn" onclick="RECIBIDOS=null;route(true)">${icon('undo')} Actualizar</button></div></div>
     <div class="card"><div class="empty"><div class="spinner"></div>Cargando…</div></div>`;
   try {
-    if (!RECIBIDOS || RECIBIDOS.empresaId !== e.id) RECIBIDOS = { empresaId: e.id, filas: chk(await sb.from('ecf_recibidos').select('*').eq('empresa_id', e.id).order('recibido_at', { ascending: false })) };
+    if (!RECIBIDOS || RECIBIDOS.empresaId !== e.id) {
+      const [filas, log, cfg, estado] = await Promise.all([
+        sb.from('ecf_recibidos').select('*').eq('empresa_id', e.id).order('recibido_at', { ascending: false }).then(chk),
+        // El registro de intentos es opcional: si falta ecf8.sql la página sigue funcionando
+        sb.from('ecf_recepcion_log').select('*').eq('empresa_id', e.id).order('recibido_at', { ascending: false }).limit(200).then(r => (r.error ? null : r.data)),
+        sb.from('ecf_config').select('ambiente,cert_info').eq('empresa_id', e.id).then(r => (r.data || [])[0] || null),
+        fetch('/fe/estado').then(r => r.json()).catch(() => null),
+      ]);
+      RECIBIDOS = { empresaId: e.id, tab: (RECIBIDOS && RECIBIDOS.tab) || 'docs', filas, log, cfg, estado };
+    }
   } catch (err) {
     v.querySelector('.card').innerHTML = `<div class="empty">${esc(errMsg(err))}${/ecf_recibidos/.test(String(err.message)) ? '<br>Ejecuta supabase/ecf4.sql en Supabase.' : ''}</div>`;
     return;
   }
-  const filas = RECIBIDOS.filas;
-  v.querySelector('.card').outerHTML = `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Recibido</th><th>Emisor</th><th>e-NCF</th><th>Tipo</th><th class="right">Total</th><th>Acuse</th><th>Aprobación comercial</th><th></th></tr></thead><tbody>
+  const { filas, log, cfg, estado } = RECIBIDOS;
+  const base = location.protocol === 'https:' ? location.origin : 'https://facturacion-rd.ipmplaza.workers.dev';
+  const urls = [['Autenticación', base + '/fe/autenticacion/api/semilla'], ['Recepción', base + '/fe/recepcion/api/ecf'], ['Aprobación comercial', base + '/fe/aprobacioncomercial/api/ecf']];
+  const ultimo = log && log[0];
+  const chkItem = (ok, txt) => `<li>${ok ? '<span class="pill green">OK</span>' : '<span class="pill red">Revisar</span>'} ${txt}</li>`;
+  const diag = `<div class="card mb"><div class="section-title" style="margin-top:0">Recepción de comprobantes de tus proveedores</div>
+    <p class="small">Tus proveedores envían sus e-CF al RNC <b>${esc(fmtId(e.rnc))}</b> en la URL que tengas registrada en la DGII (Oficina Virtual → Facturación electrónica → URLs de servicios).
+      Si no está registrada <b>en producción</b>, los e-CF no llegan aquí. Registra estas URLs:</p>
+    <div class="tbl-wrap"><table><tbody>${urls.map(([l, u]) => `<tr><td class="nowrap">${l}</td><td class="mono small" style="word-break:break-all">${esc(u)}</td>
+      <td class="right"><button class="btn sm" onclick="A.copiarTexto('${esc(u)}')">Copiar</button></td></tr>`).join('')}</tbody></table></div>
+    <ul class="small" style="list-style:none;padding:0;margin:10px 0 0;display:grid;gap:6px">
+      ${chkItem(estado && estado.servicioConfigurado, estado ? (estado.servicioConfigurado ? 'El servidor puede guardar los e-CF que llegan.' : 'El servidor no puede guardar los e-CF (falta o es incorrecta SUPABASE_SERVICE_KEY en Cloudflare).') : 'No se pudo consultar el servidor (solo funciona en la app publicada).')}
+      ${chkItem(estado && estado.claveMaestra, 'Clave para firmar los acuses de recibo (ECF_MASTER_KEY).')}
+      ${chkItem(!!cfg, cfg ? `Certificado digital cargado (ambiente <b>${esc(cfg.ambiente || '—')}</b>).` : 'No hay certificado digital cargado: los acuses de recibo salen sin firmar.')}
+      ${chkItem(log !== null, log !== null ? 'Registro de intentos de recepción activo.' : 'Falta el registro de intentos: ejecuta supabase/ecf8.sql en Supabase.')}
+      ${log !== null ? chkItem(!!ultimo, ultimo ? `Último envío recibido: ${new Date(ultimo.recibido_at).toLocaleString('es-DO')} · ${RES_RECEPCION[ultimo.resultado]?.[0] || esc(ultimo.resultado)}` : 'Todavía no ha llegado ningún envío de proveedores a esta empresa desde que se activó el registro.') : ''}
+    </ul></div>`;
+  const tabs = `<div class="tabs">${[['docs', `Comprobantes (${filas.length})`], ['log', `Intentos de recepción${log ? ` (${log.length})` : ''}`]].map(([k, l]) => `<button class="${RECIBIDOS.tab === k ? 'active' : ''}" onclick="RECIBIDOS.tab='${k}';route(true)">${l}</button>`).join('')}</div>`;
+  if (RECIBIDOS.tab === 'log') {
+    v.querySelector('.card').outerHTML = diag + tabs + `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Resultado</th><th>Emisor</th><th>e-NCF</th><th class="right">Total</th><th>Detalle</th><th></th></tr></thead><tbody>
+      ${log === null ? '<tr><td colspan="7"><div class="empty">Ejecuta supabase/ecf8.sql en Supabase para activar el registro.</div></td></tr>'
+      : log.length ? log.map(l => { const [txt, color] = RES_RECEPCION[l.resultado] || [l.resultado, 'gray']; return `<tr>
+        <td class="nowrap small">${new Date(l.recibido_at).toLocaleString('es-DO')}</td><td><span class="pill ${color}">${esc(txt)}</span></td>
+        <td>${esc(l.razon_social_emisor || '')}<span class="sub mono">${l.rnc_emisor ? 'RNC ' + esc(fmtId(l.rnc_emisor)) : ''}</span></td>
+        <td class="mono small">${esc(l.encf || '')}</td><td class="right nowrap">${l.monto_total != null ? money(l.monto_total) : ''}</td>
+        <td class="small">${esc(l.motivo || '')}</td>
+        <td class="right">${l.xml ? `<button class="icon-btn" title="Descargar XML" onclick="A.xmlIntento('${l.id}')">${icon('down')}</button>` : ''}</td></tr>`; }).join('')
+      : '<tr><td colspan="7"><div class="empty">Aún no ha llegado ningún envío. Si tus proveedores dicen que ya enviaron, revisa que las URLs de arriba estén registradas en la DGII en producción.</div></td></tr>'}
+    </tbody></table></div></div>`;
+    return;
+  }
+  v.querySelector('.card').outerHTML = diag + tabs + `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Recibido</th><th>Emisor</th><th>e-NCF</th><th>Tipo</th><th class="right">Total</th><th>Acuse</th><th>Aprobación comercial</th><th></th></tr></thead><tbody>
     ${filas.length ? filas.map(r => { const a = r.aprobacion || {}; return `<tr>
       <td class="nowrap small">${new Date(r.recibido_at).toLocaleString('es-DO')}</td>
       <td>${esc(r.razon_social_emisor || '')}<span class="sub mono">RNC ${esc(fmtId(r.rnc_emisor))}</span></td>
       <td class="mono small">${esc(r.encf)}</td><td>E${esc(r.tipo || '')}</td><td class="right nowrap">${money(r.monto_total)}</td>
-      <td>${r.acuse_estado === 0 ? '<span class="pill green">Recibido</span>' : '<span class="pill red">No recibido</span>'}</td>
+      <td>${r.firma_valida === false ? '<span class="pill red">Firma no válida</span><span class="sub">Acuse: No recibido</span>' : r.acuse_estado === 0 ? '<span class="pill green">Recibido</span>' : '<span class="pill red">No recibido</span>'}</td>
       <td>${a.estado ? `<span class="pill ${a.estado === 'Aprobada' ? 'green' : 'red'}">${esc(a.estado)}</span><span class="sub">DGII: ${esc(a.dgii?.estado || '—')}${(a.dgii?.mensajes || []).length ? ' · ' + a.dgii.mensajes.map(esc).join(' · ') : ''}</span>` : '<span class="pill gray">Pendiente</span>'}</td>
       <td class="right nowrap">
-        ${!a.estado || a.error ? `<button class="btn sm primary" onclick="A.aprobarRecibido('${r.id}',true)">Aprobar</button> <button class="btn sm danger" onclick="A.aprobarRecibido('${r.id}',false)">Rechazar</button>` : ''}
+        ${r.firma_valida !== false && (!a.estado || a.error) ? `<button class="btn sm primary" onclick="A.aprobarRecibido('${r.id}',true)">Aprobar</button> <button class="btn sm danger" onclick="A.aprobarRecibido('${r.id}',false)">Rechazar</button>` : ''}
         <button class="icon-btn" title="Descargar XML" onclick="A.xmlRecibido('${r.id}')">${icon('down')}</button></td></tr>`; }).join('')
       : `<tr><td colspan="8"><div class="empty">Aún no has recibido comprobantes electrónicos.</div></td></tr>`}
   </tbody></table></div></div>`;
@@ -1697,6 +1736,13 @@ A.aprobarRecibido = (id, aprobado) => {
   });
 };
 A.xmlRecibido = id => { const r = RECIBIDOS.filas.find(x => x.id === id); download(`${r.rnc_emisor}${r.encf}.xml`, r.xml, 'text/xml'); };
+A.xmlIntento = id => { const l = RECIBIDOS.log.find(x => x.id === id); download(`${l.rnc_emisor || 'intento'}${l.encf || ''}-${l.resultado}.xml`, l.xml, 'text/xml'); };
+A.copiarTexto = t => navigator.clipboard.writeText(t).then(() => toast('Copiado.', 'ok'), () => toast('No se pudo copiar.', 'error'));
+// Resultado de cada intento de recepción (tabla ecf_recepcion_log): [texto, color]
+const RES_RECEPCION = {
+  aceptado: ['Recibido', 'green'], duplicado: ['Duplicado', 'gray'], firma_invalida: ['Firma no válida', 'red'],
+  rnc_no_corresponde: ['RNC no corresponde', 'red'], token_invalido: ['Token inválido', 'red'], xml_invalido: ['XML no válido', 'red'], error: ['Error del servidor', 'red'],
+};
 
 /* =========================================================
    CERTIFICACIÓN DGII — set de pruebas (Excel que entrega la DGII)
@@ -2643,19 +2689,20 @@ let REC_IMPORT = [];
 A.importarRecibidos = async () => {
   if (DB.sinGastos) return toast('Primero ejecuta supabase/ecf6.sql en Supabase.', 'error');
   let rows;
-  try { rows = chk(await sb.from('ecf_recibidos').select('id,rnc_emisor,razon_social_emisor,encf,tipo,fecha_emision,monto_total,total_itbis,xml').eq('empresa_id', DB.activeId).order('recibido_at', { ascending: false })); }
+  try { rows = chk(await sb.from('ecf_recibidos').select('id,rnc_emisor,razon_social_emisor,encf,tipo,fecha_emision,monto_total,total_itbis,xml,firma_valida').eq('empresa_id', DB.activeId).order('recibido_at', { ascending: false })); }
   catch (err) { return toast(errMsg(err), 'error'); }
   const ya = new Set(gastos().map(g => digits(g.proveedor?.rnc) + '|' + g.ncf));
   REC_IMPORT = rows.filter(r => !ya.has(digits(r.rnc_emisor) + '|' + r.encf) && !['E41', 'E43', 'E47'].includes('E' + String(r.tipo || '').replace(/^E/, '')));
   if (!REC_IMPORT.length) return toast(rows.length ? 'Todos los e-CF recibidos ya están registrados.' : 'No tienes e-CF recibidos.', rows.length ? 'ok' : '');
   modal('Importar e-CF recibidos', `
     <div class="alert info mb">Se registrarán como compras o gastos con los montos del XML de cada comprobante. Luego puedes editar cada uno.</div>
+    ${REC_IMPORT.some(r => r.firma_valida === false) ? '<div class="alert err mb"><div>Los marcados con <b>Firma no válida</b> no se pudieron verificar y se respondieron como "No recibido". No están seleccionados; impórtalos solo si confirmas el comprobante con el proveedor.</div></div>' : ''}
     <div class="fgrid mb">
       <div class="field"><label>Registrar como</label><select class="in" name="clase" onchange="this.form.elements.tipo606.value=this.value==='compra'?'09':'02'"><option value="gasto">Gasto</option><option value="compra">Compra (mercancía / costo de venta)</option></select></div>
       <div class="field"><label>Clasificación 606</label><select class="in" name="tipo606">${Object.entries(TIPOS_606).map(([k, l]) => `<option value="${k}" ${k === '02' ? 'selected' : ''}>${k} · ${l}</option>`).join('')}</select></div>
     </div>
     <div class="tbl-wrap" style="max-height:320px;overflow:auto"><table><thead><tr><th><input type="checkbox" checked onchange="this.form.querySelectorAll('input[name=rec]').forEach(c=>c.checked=this.checked)"></th><th>Proveedor</th><th>e-NCF</th><th>Fecha</th><th class="right">Total</th></tr></thead><tbody>
-    ${REC_IMPORT.map((r, i) => `<tr><td><input type="checkbox" name="rec" value="${i}" checked></td><td>${esc(r.razon_social_emisor || r.rnc_emisor)}<span class="sub">${esc(fmtId(r.rnc_emisor))}</span></td><td class="mono small">${esc(r.encf)}</td><td class="nowrap">${esc(r.fecha_emision || '')}</td><td class="right mono">${money(r.monto_total)}</td></tr>`).join('')}
+    ${REC_IMPORT.map((r, i) => `<tr><td><input type="checkbox" name="rec" value="${i}" ${r.firma_valida === false ? '' : 'checked'}></td><td>${esc(r.razon_social_emisor || r.rnc_emisor)}<span class="sub">${esc(fmtId(r.rnc_emisor))}</span></td><td class="mono small">${esc(r.encf)}${r.firma_valida === false ? ' <span class="pill red">Firma no válida</span>' : ''}</td><td class="nowrap">${esc(r.fecha_emision || '')}</td><td class="right mono">${money(r.monto_total)}</td></tr>`).join('')}
     </tbody></table></div>`, {
     wide: true, okText: 'Importar seleccionados', onOk: async form => {
       const sel = [...form.querySelectorAll('input[name=rec]:checked')].map(c => REC_IMPORT[+c.value]);

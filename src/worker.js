@@ -32,6 +32,7 @@ export default {
     const ruta = url.pathname.toLowerCase().replace(/\/+$/, '');
     if (ruta.includes('/fe/')) {
       try {
+        if (ruta.endsWith('/fe/estado') && request.method === 'GET') return await feEstado(env);
         if (ruta.endsWith('/fe/autenticacion/api/semilla') && request.method === 'GET') return await feSemilla(env);
         if (ruta.endsWith('/fe/autenticacion/api/validacioncertificado') && request.method === 'POST') return await feValidarCertificado(env, request);
         if (ruta.endsWith('/fe/recepcion/api/ecf') && request.method === 'POST') return await feRecepcion(env, request);
@@ -132,7 +133,18 @@ async function feVerificarToken(env, request) {
 
 async function empresaPorRnc(env, rnc) {
   if (!/^\d{9}(\d{2})?$/.test(rnc)) return null;
-  return uno(await sbAdmin(env, `empresas?select=id,nombre,data&data->>rnc=eq.${rnc}&limit=1`));
+  const exacta = uno(await sbAdmin(env, `empresas?select=id,nombre,data&data->>rnc=eq.${rnc}&limit=1`));
+  if (exacta) return exacta;
+  // Empresas antiguas pueden tener el RNC guardado con guiones o espacios
+  const otras = await sbAdmin(env, `empresas?select=id,nombre,data&data->>rnc=like.*${rnc.slice(-3)}*`);
+  return (otras || []).find(e => soloDigitos(e.data && e.data.rnc) === rnc) || null;
+}
+// Autodiagnóstico de los servicios receptores (sin datos sensibles)
+async function feEstado(env) {
+  let servicioOk = false, registroOk = false, error = '';
+  try { await sbAdmin(env, 'empresas?select=id&limit=1'); servicioOk = true; } catch (e) { error = String(e.message || e); }
+  if (servicioOk) try { await sbAdmin(env, 'ecf_recepcion_log?select=id&limit=1'); registroOk = true; } catch (e) { error = String(e.message || e); }
+  return json({ ok: servicioOk && !!env.ECF_MASTER_KEY, servicioConfigurado: servicioOk, claveMaestra: !!env.ECF_MASTER_KEY, registroRecepcion: registroOk, error });
 }
 async function firmanteServicio(env, empresaId) {
   const c = uno(await sbAdmin(env, `ecf_config?empresa_id=eq.${empresaId}&select=*`));
@@ -143,39 +155,64 @@ async function firmanteServicio(env, empresaId) {
   return { privateKey: await importPrivateKey(pkcs8), cert: c.cert_b64 };
 }
 
+// Anota cada intento de recepción (aceptado o no) para poder diagnosticar por qué no aparece un e-CF.
+// Nunca debe romper la respuesta al emisor: si falla, solo queda en el log del Worker.
+async function registrarRecepcion(env, d) {
+  try {
+    await sbAdmin(env, 'ecf_recepcion_log', { method: 'POST', headers: { prefer: 'return=minimal' }, body: JSON.stringify(d) });
+  } catch (e) { console.log('No se pudo registrar la recepción', d.resultado, String(e.message || e)); }
+}
+
 // Recepción de e-CF: guarda el comprobante y responde un acuse de recibo (ARECF) firmado por el receptor.
+// Los e-CF con firma no válida se guardan igualmente (firma_valida=false) para que el usuario los vea, aunque el acuse sea "No recibido".
 async function feRecepcion(env, request) {
-  await feVerificarToken(env, request);
-  const xml = await leerXmlEntrante(request);
-  const v = await verificarFirma(xml);
-  if (!v.root || !/(^|:)ECF$/.test(v.root.n || '')) throw new Error('El archivo no es un e-CF válido.');
-  const rncEmisor = soloDigitos(texto(v.root, 'RNCEmisor')), rncComprador = soloDigitos(texto(v.root, 'RNCComprador')), encf = texto(v.root, 'eNCF').trim();
-  if (!rncEmisor || !encf) throw new Error('El e-CF no tiene RNCEmisor o eNCF.');
-  const emp = await empresaPorRnc(env, rncComprador);
-  let motivo = null;
-  if (!v.ok) motivo = 2;                 // Error de firma digital
-  else if (!emp) motivo = 4;             // RNC comprador no corresponde
-  else {
-    const previo = uno(await sbAdmin(env, `ecf_recibidos?select=id&empresa_id=eq.${emp.id}&rnc_emisor=eq.${rncEmisor}&encf=eq.${encodeURIComponent(encf)}&limit=1`));
-    if (previo) motivo = 3;              // Envío duplicado
-  }
-  if (emp && v.ok && motivo === null) {
+  const log = { ruta: 'recepcion', ip: request.headers.get('cf-connecting-ip') || '' };
+  let anotado = false;
+  try {
+    const xml = await leerXmlEntrante(request);
+    log.xml = xml.slice(0, 500000);
+    try { await feVerificarToken(env, request); } catch (e) { log.resultado = 'token_invalido'; throw e; }
+    const v = await verificarFirma(xml);
+    if (!v.root || !/(^|:)ECF$/.test(v.root.n || '')) { log.resultado = 'xml_invalido'; throw new Error('El archivo no es un e-CF válido.'); }
+    const rncEmisor = soloDigitos(texto(v.root, 'RNCEmisor')), rncComprador = soloDigitos(texto(v.root, 'RNCComprador')), encf = texto(v.root, 'eNCF').trim();
     const n = x => { const s = texto(v.root, x); return s ? Number(s) : null; };
-    await sbAdmin(env, 'ecf_recibidos', {
-      method: 'POST', headers: { prefer: 'return=minimal' },
-      body: JSON.stringify({
-        empresa_id: emp.id, rnc_emisor: rncEmisor, razon_social_emisor: texto(v.root, 'RazonSocialEmisor'), encf,
-        tipo: texto(v.root, 'TipoeCF'), fecha_emision: texto(v.root, 'FechaEmision'), monto_total: n('MontoTotal'), total_itbis: n('TotalITBIS'),
-        xml, firma_valida: true, acuse_estado: 0,
-      }),
+    Object.assign(log, {
+      rnc_emisor: rncEmisor, razon_social_emisor: texto(v.root, 'RazonSocialEmisor'), rnc_comprador: rncComprador,
+      encf, tipo: texto(v.root, 'TipoeCF'), monto_total: n('MontoTotal'),
     });
+    if (!rncEmisor || !encf) { log.resultado = 'xml_invalido'; throw new Error('El e-CF no tiene RNCEmisor o eNCF.'); }
+    const emp = await empresaPorRnc(env, rncComprador);
+    if (emp) log.empresa_id = emp.id;
+    let motivo = null, previo = null;
+    if (!emp) motivo = 4;                  // RNC comprador no corresponde
+    else {
+      previo = uno(await sbAdmin(env, `ecf_recibidos?select=id,firma_valida&empresa_id=eq.${emp.id}&rnc_emisor=eq.${rncEmisor}&encf=eq.${encodeURIComponent(encf)}&limit=1`));
+      if (!v.ok) motivo = 2;               // Error de firma digital
+      else if (previo && previo.firma_valida) motivo = 3; // Envío duplicado
+    }
+    if (emp && !(previo && previo.firma_valida)) {
+      const fila = {
+        empresa_id: emp.id, rnc_emisor: rncEmisor, razon_social_emisor: log.razon_social_emisor, encf,
+        tipo: log.tipo, fecha_emision: texto(v.root, 'FechaEmision'), monto_total: log.monto_total, total_itbis: n('TotalITBIS'),
+        xml, firma_valida: v.ok, acuse_estado: motivo === null ? 0 : 1, acuse_motivo: motivo,
+      };
+      // Un reenvío con firma válida sustituye al que llegó antes con firma no válida
+      if (previo) await sbAdmin(env, `ecf_recibidos?id=eq.${previo.id}`, { method: 'PATCH', headers: { prefer: 'return=minimal' }, body: JSON.stringify(fila) });
+      else await sbAdmin(env, 'ecf_recibidos', { method: 'POST', headers: { prefer: 'return=minimal' }, body: JSON.stringify(fila) });
+    }
+    log.resultado = { 2: 'firma_invalida', 3: 'duplicado', 4: 'rnc_no_corresponde' }[motivo] || 'aceptado';
+    log.motivo = motivo === 2 ? v.motivo : motivo === 4 ? `RNC comprador ${rncComprador || '(vacío)'} no corresponde a ninguna empresa` : null;
+    await registrarRecepcion(env, log); anotado = true;
+    const acuse = construirARECF({
+      rncEmisor, rncComprador: rncComprador || '000000000', encf, recibido: motivo === null, motivo: motivo ?? undefined, fechaHora: fechaHoraRD(),
+    });
+    const s = emp ? await firmanteServicio(env, emp.id).catch(() => null) : null;
+    if (s) return xmlResp((await signTree(acuse, s.privateKey, s.cert)).xml);
+    return xmlResp(serialize(acuse));
+  } catch (err) {
+    if (!anotado) await registrarRecepcion(env, { ...log, resultado: log.resultado || 'error', motivo: String(err && err.message || err) });
+    throw err;
   }
-  const acuse = construirARECF({
-    rncEmisor, rncComprador: rncComprador || '000000000', encf, recibido: motivo === null, motivo: motivo ?? undefined, fechaHora: fechaHoraRD(),
-  });
-  const s = emp ? await firmanteServicio(env, emp.id).catch(() => null) : null;
-  if (s) return xmlResp((await signTree(acuse, s.privateKey, s.cert)).xml);
-  return xmlResp(serialize(acuse));
 }
 
 // Aprobación comercial recibida sobre un e-CF que emitimos.
@@ -398,7 +435,8 @@ async function procesarSet(env, jwt, { empresaId, ambiente = 'certecf', accion, 
 async function aprobarRecibido(env, jwt, { recibidoId, aprobado, motivo }) {
   const r = uno(await sb(jwt, `ecf_recibidos?id=eq.${recibidoId}&select=*`));
   if (!r) throw new Error('Comprobante recibido no encontrado.');
-  if (!aprobado && !String(motivo || '').trim()) throw new Error('Indica el motivo del rechazo.');
+  if (r.firma_valida === false) throw new Error('Este e-CF llegó con firma no válida y se respondió como "No recibido"; pide al proveedor que lo reenvíe.');
+  if (!aprobado &&!String(motivo || '').trim()) throw new Error('Indica el motivo del rechazo.');
   const root = parseXml(r.xml);
   const emp = uno(await sb(jwt, `empresas?id=eq.${r.empresa_id}&select=data`));
   const rncComprador = String((emp.data || {}).rnc || '').replace(/\D/g, '');

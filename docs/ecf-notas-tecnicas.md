@@ -54,3 +54,27 @@ totales, QR abajo a la izquierda (≥ 22×22 mm), "Código de Seguridad" y "Fech
 - `src/ecf.js`: construcción del XML según el orden del XSD, C14N, firma, cliente DGII.
 - `src/worker.js`: rutas `/api/ecf/*`; la clave privada se guarda cifrada (AES-GCM con el secreto `ECF_MASTER_KEY` del Worker).
 - `supabase/ecf.sql`: tabla `ecf_config` y tipos E en secuencias.
+- `supabase/ecf8.sql`: tabla `ecf_recepcion_log` con cada intento de recepción.
+
+## Recepción de e-CF de proveedores (gastos)
+Los proveedores no envían a una URL fija: consultan en la DGII la URL de recepción registrada para el RNC comprador.
+Si la empresa no la tiene registrada **en producción** (Oficina Virtual → Facturación electrónica), nada llega a la app.
+
+Las URLs que hay que registrar se muestran en la página **e-CF recibidos**:
+- Autenticación: `https://<dominio>/fe/autenticacion/api/semilla` (y `validacioncertificado`)
+- Recepción: `https://<dominio>/fe/recepcion/api/ecf`
+- Aprobación comercial: `https://<dominio>/fe/aprobacioncomercial/api/ecf`
+
+Requisitos en el Worker: los secretos `SUPABASE_SERVICE_KEY` (guardar sin sesión) y `ECF_MASTER_KEY` (firmar el ARECF con el certificado de la empresa).
+`GET /fe/estado` comprueba los dos sin exponer datos.
+
+Cada POST a `/fe/recepcion/api/ecf` queda en `ecf_recepcion_log` con su resultado: `aceptado`, `duplicado`,
+`firma_invalida`, `rnc_no_corresponde`, `token_invalido`, `xml_invalido` o `error`. La página e-CF recibidos lo muestra
+en la pestaña "Intentos de recepción".
+- Los intentos con `rnc_no_corresponde` no tienen empresa y solo se ven en Supabase (Table editor, con la clave de servicio).
+  Suele ser un proveedor que puso otro RNC o una cédula.
+- Un e-CF con firma no válida se guarda en `ecf_recibidos` con `firma_valida=false` y se responde "No recibido" (motivo 2).
+  No se puede aprobar comercialmente. Si el proveedor lo reenvía bien firmado, sustituye al anterior.
+- Para ver en vivo lo que llega: `wrangler tail`.
+
+Los e-CF recibidos no se convierten en gastos solos: se pasan a Compras y gastos con el botón "Pasar a Compras y gastos".
