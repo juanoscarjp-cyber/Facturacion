@@ -255,6 +255,116 @@ body.auth-mode #sidebar, body.auth-mode .topbar{display:none}
   .hide-sm{display:none}
 }
 @media (max-width:520px){ .g4{grid-template-columns:1fr} .page-head h1{font-size:22px} }
+/* ===== Celular ===== */
+.grid > *, .form-layout > *, .fgrid > *, .db-left > *{min-width:0}
+.only-sm{display:none}
+.form-bar{display:none}
+input[type=file]{max-width:100%;min-width:0}
+img{max-width:100%}
+.page-head h1{flex:1 1 auto}
+@media (max-width:640px){
+  body{overflow-x:clip}
+  #sidebar{height:100vh;height:100dvh}
+  #side-foot{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  /* Barra fija del formulario de factura: total y botón Emitir siempre a mano */
+  .form-bar{display:flex;position:sticky;bottom:0;z-index:6;margin:12px -12px -28px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--border);box-shadow:0 -6px 18px rgba(16,24,40,.08);align-items:center;gap:10px}
+  .form-bar .t{flex:1;min-width:0;line-height:1.2}.form-bar .t small{display:block;color:var(--muted);font-size:11px}.form-bar .t b{font-size:18px}
+  .form-bar .btn{flex:0 0 auto;padding:11px 16px}
+  #view{padding:12px 12px 28px}
+  .topbar{height:52px;padding:0 10px;gap:8px}
+  /* Las rejillas con columnas fijas (2fr 1fr…) pasan a una sola columna */
+  .grid[style*="grid-template-columns"]{grid-template-columns:1fr !important}
+  .grid{gap:12px}.mt{margin-top:12px}.mb{margin-bottom:12px}
+  /* Título arriba y botones debajo, ocupando el ancho */
+  .page-head{gap:10px;margin-bottom:14px}
+  .page-head h1{font-size:22px;flex:1 1 100%}
+  .page-head > .btn.ghost + h1{flex-basis:calc(100% - 52px)}
+  .page-head > div{flex:1 1 100%;display:flex;gap:8px;flex-wrap:wrap}
+  .page-head > div > .btn, .page-head > div > a.btn{flex:1 1 auto}
+  .page-head > .btn:not(.ghost), .page-head > a.btn:not(.ghost), .page-head > .chip-select{flex:1 1 auto}
+  .btn{padding:9px 12px}
+  /* iOS no hace zoom al escribir si la letra es de 16px o más */
+  input.in,select.in,textarea.in,.search input,.chip-select select,.chip-select input{font-size:16px}
+  .toolbar{gap:8px}
+  .toolbar .chip-select{flex:1 1 100%;min-width:0}
+  .chip-select select,.chip-select input{min-width:0;flex:1;width:100%}
+  .search{min-width:0;flex:1 1 100%}
+  .card-h{padding:12px 14px;flex-wrap:wrap;row-gap:8px}
+  .card-b{padding:14px}
+  td,th{padding:10px 10px}
+  td{overflow-wrap:break-word}
+  .only-sm{display:inline}
+  /* Listas (facturas, gastos, clientes, productos) como tarjetas: nombre y monto arriba, el resto debajo */
+  .tlist thead{display:none}
+  .tlist,.tlist tbody{display:block}
+  .tlist tr{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .tlist tr:last-child{border-bottom:0}
+  .tlist td{display:block;padding:0;border:0;order:3;font-size:12px;color:var(--muted);text-align:left}
+  .tlist td.c-main{order:1;flex:1 1 55%;min-width:0;font-size:14px;font-weight:600;color:var(--text)}
+  .tlist td.c-main .sub{font-weight:400}
+  .tlist td.c-amt{order:2;flex:0 0 auto;font-size:14px;font-weight:700;color:var(--text);text-align:right}
+  .tlist td .sub{display:inline;margin-left:6px}
+  .tlist td.c-main .sub{display:block;margin-left:0}
+  .tlist td.hide-sm{display:none}
+  .tlist td[data-l]::before{content:attr(data-l) " ";color:var(--muted);font-family:var(--sans,inherit)}
+  .totals .row{gap:12px}.totals .row > span:last-child{text-align:right;white-space:nowrap}
+  .tlist td[colspan]{flex:1 1 100%}
+  .tlist td .pill{font-size:11px;padding:2px 8px}
+  .tlist td.right:last-child:not(.c-amt){margin-left:auto}
+  .kpi{padding:14px}.kpi .v{font-size:21px}
+  .kv{gap:8px 12px}.kv dd{min-width:0;overflow-wrap:anywhere}
+  .totals{width:100%;padding:12px 14px}
+  .alert{flex-wrap:wrap}
+  .pill{white-space:normal}
+  /* Reportes fiscales anchos (607, 606, CxC…): se deslizan de lado sin partir las filas */
+  .tbl-wrap:not(:has(.tlist)) td:not(.small){white-space:nowrap}
+  .tbl-wrap:not(:has(.tlist)) td.small{min-width:220px}
+  .tbl-wrap:not(:has(.tlist)) td:first-child{white-space:normal;min-width:120px}
+  .tbl-wrap{-webkit-overflow-scrolling:touch}
+  .tabs button{padding:10px 11px}
+  .legend{flex-wrap:wrap;gap:8px}
+  /* Ventanas emergentes: hoja que sube desde abajo, botones siempre visibles */
+  .modal-bg{padding:24px 0 0;align-items:flex-end}
+  .modal,.modal.wide{width:100%;border-radius:16px 16px 0 0;max-height:calc(100dvh - 24px);overflow:auto}
+  .modal-h{padding:14px 16px;position:sticky;top:0;background:#fff;z-index:2;border-radius:16px 16px 0 0}
+  .modal-b{padding:14px 16px}
+  .modal-f{padding:12px 16px calc(12px + env(safe-area-inset-bottom));position:sticky;bottom:0;background:#fff;z-index:2}
+  .modal-f .btn{flex:1}
+  #toast{bottom:calc(16px + env(safe-area-inset-bottom));width:calc(100% - 24px)}
+  .toast{max-width:100%;text-align:center}
+  body:has(.form-bar) #toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+  /* Ítems de la factura como tarjetas */
+  .items-tbl thead{display:none}
+  .items-tbl,.items-tbl tbody{display:block}
+  .items-tbl tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 10px;padding:12px 14px;border-bottom:1px solid var(--border);position:relative}
+  .items-tbl td{display:block;padding:0;border:0;min-width:0}
+  .items-tbl td:first-child{grid-column:1/-1;padding-right:40px}
+  .items-tbl td[data-l]::before{content:attr(data-l);display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px;text-align:left}
+  .items-tbl td.li-sub{grid-column:span 2;align-self:end;font-weight:700;font-size:15px;padding-bottom:9px}
+  .items-tbl td.li-del{position:absolute;top:12px;right:8px}
+  .items-tbl input.in,.items-tbl select.in{padding:9px 10px}
+  /* Secuencias en Empresas → Editar: una tarjeta por tipo de comprobante */
+  .seq-tbl thead{display:none}
+  .seq-tbl,.seq-tbl tbody{display:block}
+  .seq-tbl tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;padding:12px 0;border-bottom:1px solid var(--border)}
+  .seq-tbl td{display:block;padding:0;border:0;min-width:0}
+  .seq-tbl td:first-child{grid-column:1/-1;display:flex;gap:10px;align-items:center}
+  .seq-tbl td:nth-child(2){display:none}
+  .seq-tbl td:first-child::after{content:attr(data-tipo);font-weight:600;font-size:13px}
+  .seq-tbl td[data-l]::before{content:attr(data-l);display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px}
+  .seq-tbl input.in{width:100% !important;padding:9px 10px}
+  /* Dashboard */
+  .db-head,.db-kpi,.db-res{padding-left:14px;padding-right:14px}
+  .db-kpi .v{font-size:20px}
+  .db-res .eq .tot{font-size:20px}
+  .db-bar{margin:16px 14px 12px}.db-chips{padding:0 14px 14px}
+  .db-deuda{padding:16px}.db-deuda .v{font-size:26px}
+  .db-stats .db-kpi .v{font-size:20px}
+  .db-old .c{max-width:52vw}
+  .auth-card{padding:22px 18px}
+  .onboard{margin:20px auto}.onboard h1{font-size:23px}
+  .emp-menu{right:0}
+}
 
 /* ===== Print ===== */
 #print-area{display:none}
@@ -1001,7 +1111,7 @@ function viewDashboard(v) {
     <div class="db-kpi"><div class="l">Facturas de contado</div><div class="v">${contado}</div><div class="d">creadas</div></div>
   </div>
   <div class="grid mt" style="grid-template-columns:2fr 1fr">
-    <div class="card"><div class="card-h">Ventas últimos 12 meses<span class="sp"></span>
+    <div class="card"><div class="card-h">Ventas por mes<span class="sp"></span>
       <div class="legend"><span><i style="background:var(--primary)"></i>Facturado</span><span><i style="background:#c9c6ef"></i>Cobrado</span></div></div>
       <div class="card-b chart">${barChart(serie)}</div></div>
     <div class="card"><div class="card-h">Mejores clientes ${anio}</div>
@@ -1010,7 +1120,10 @@ function viewDashboard(v) {
   </div>`;
 }
 function barChart(serie) {
-  const W = 640, H = 220, P = { l: 52, r: 8, t: 10, b: 26 };
+  // En el celular la gráfica se dibuja al ancho de la pantalla (letras legibles) y con los últimos 6 meses
+  const ancho = ($('#view')?.clientWidth || 680) - 60, movil = ancho < 520;
+  if (movil) serie = serie.slice(-6);
+  const W = movil ? Math.max(280, ancho) : 640, H = movil ? 190 : 220, P = { l: 46, r: 8, t: 10, b: 26 };
   const max = Math.max(1, ...serie.map(s => Math.max(s.fact, s.cob)));
   const step = (W - P.l - P.r) / serie.length, bw = Math.min(16, step / 3);
   const y = val => P.t + (H - P.t - P.b) * (1 - Math.max(0, val) / max);
@@ -1035,11 +1148,11 @@ const LF = { q: '', tipo: 'ventas', estado: '', desde: '', hasta: '', limit: 50 
 function rowFactura(f) {
   const t = calc(f), c = f.cliente || {}, url = `#/facturas/${f.id}${esBorrador(f) ? '/editar' : ''}`;
   return `<tr class="click" onclick="location.hash='${url}'">
-    <td class="mono nowrap"><a href="${url}">${esBorrador(f) ? '<i>Borrador</i>' : esc(f.numero)}</a></td>
+    <td class="mono nowrap"><a href="${url}">${esBorrador(f) ? '<i>Borrador</i>' : esc(f.numero)}</a><span class="only-sm"> · ${fdate(f.fecha)}</span></td>
     <td class="mono small hide-sm">${f.ncf ? esc(f.ncf) : esBorrador(f) ? `<span class="muted">${esc(f.tipo === TIPO_NONE ? '—' : f.tipo + ' (al emitir)')}</span>` : '<span class="muted">—</span>'}</td>
-    <td>${esc(c.nombre || 'Consumidor Final')}${c.rnc ? `<span class="sub">RNC: ${esc(fmtId(c.rnc))}</span>` : ''}</td>
+    <td class="c-main">${esc(c.nombre || 'Consumidor Final')}${c.rnc ? `<span class="sub">RNC: ${esc(fmtId(c.rnc))}</span>` : ''}</td>
     <td class="nowrap hide-sm">${fdate(f.fecha)}</td>
-    <td class="right nowrap">${esNota(f.tipo) ? '-' : ''}${money(t.total)}</td>
+    <td class="right nowrap c-amt">${esNota(f.tipo) ? '-' : ''}${money(t.total)}</td>
     <td>${pill(estado(f))}${esECF(f.tipo) && !esBorrador(f) ? `<span class="sub" style="${['Aceptado', 'Aceptado Condicional'].includes(f.ecf?.estado) ? '' : 'color:var(--red)'}">DGII: ${esc(f.ecf?.estado || 'sin enviar')}</span>` : ''}</td></tr>`;
 }
 function viewFacturas(v) {
@@ -1062,7 +1175,7 @@ function viewFacturas(v) {
     <label class="chip-select"><span>Desde:</span><input type="date" value="${LF.desde}" onchange="A.lf('desde',this.value)"></label>
     <label class="chip-select"><span>Hasta:</span><input type="date" value="${LF.hasta}" onchange="A.lf('hasta',this.value)"></label>
   </div>
-  <div class="card"><div class="tbl-wrap"><table>
+  <div class="card"><div class="tbl-wrap"><table class="tlist">
     <thead><tr><th>Número</th><th class="hide-sm">NCF</th><th>Cliente</th><th class="hide-sm">Fecha</th><th class="right">Total</th><th>Estado</th></tr></thead>
     <tbody id="lf-body"></tbody></table></div>
     <div class="table-foot" id="lf-foot"></div></div>`;
@@ -1150,14 +1263,14 @@ function viewFactura(v, id) {
 
   ${esECF(f.tipo) ? tarjetaECF(f) : ''}
   <div class="card mt"><div class="card-h">Ítems</div>
-    <div class="tbl-wrap"><table><thead><tr><th>Descripción</th><th class="right">Cant.</th><th class="right">Precio unit.</th><th class="right hide-sm">Desc.</th><th class="right">ITBIS</th><th class="right">Subtotal</th></tr></thead>
+    <div class="tbl-wrap"><table class="tlist"><thead><tr><th>Descripción</th><th class="right">Cant.</th><th class="right">Precio unit.</th><th class="right hide-sm">Desc.</th><th class="right">ITBIS</th><th class="right">Subtotal</th></tr></thead>
     <tbody>${f.items.map(it => {
       const b = r2(num(it.cantidad) * num(it.precio)), base = r2(b - b * num(it.descuento) / 100);
-      return `<tr><td>${esc(it.descripcion)}${it.sku ? `<span class="sub">SKU: ${esc(it.sku)}</span>` : ''}</td>
-        <td class="right mono">${num(it.cantidad).toFixed(2)}</td><td class="right mono">${money(it.precio)}</td>
+      return `<tr><td class="c-main">${esc(it.descripcion)}${it.sku ? `<span class="sub">SKU: ${esc(it.sku)}</span>` : ''}</td>
+        <td class="right mono" data-l="Cant.">${num(it.cantidad).toFixed(2)}</td><td class="right mono" data-l="Precio">${money(it.precio)}</td>
         <td class="right hide-sm">${num(it.descuento) ? num(it.descuento) + '%' : '—'}</td>
-        <td class="right mono">${money(base * num(it.itbis) / 100)}<span class="sub">${num(it.itbis)}%</span></td>
-        <td class="right mono" style="font-weight:600">${money(base)}</td></tr>`;
+        <td class="right mono" data-l="ITBIS">${money(base * num(it.itbis) / 100)}<span class="sub">${num(it.itbis)}%</span></td>
+        <td class="right mono c-amt" style="font-weight:600">${money(base)}</td></tr>`;
     }).join('')}</tbody></table></div>
     <div class="totals">
       <div class="row"><span class="muted">Subtotal</span><span>${money(t.bruto)}</span></div>
@@ -1180,9 +1293,9 @@ function viewFactura(v, id) {
   </div>
 
   ${!esNota(f.tipo) ? `<div class="card mt"><div class="card-h">Pagos registrados<span class="sp"></span>${sal > 0 ? `<button class="btn sm" onclick="A.registrarPago('${f.id}')">${icon('plus')} Agregar</button>` : ''}</div>
-    ${(f.pagos || []).length ? `<div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Método</th><th>Referencia</th><th class="right">Recibido</th><th class="right">Retenciones</th><th></th></tr></thead><tbody>
-      ${f.pagos.map(p => `<tr><td>${fdate(p.fecha)}</td><td>${esc(p.metodo)}</td><td class="muted">${esc(p.referencia || '—')}</td><td class="right mono">${money(p.monto)}</td>
-      <td class="right mono">${retPago(p) ? `${money(retPago(p))}<span class="sub">${[num(p.retItbis) ? `ITBIS ${money(p.retItbis)}` : '', num(p.retIsr) ? `ISR ${money(p.retIsr)}` : ''].filter(Boolean).join(' · ')}</span>` : '<span class="muted">—</span>'}</td>
+    ${(f.pagos || []).length ? `<div class="tbl-wrap"><table class="tlist"><thead><tr><th>Fecha</th><th>Método</th><th>Referencia</th><th class="right">Recibido</th><th class="right">Retenciones</th><th></th></tr></thead><tbody>
+      ${f.pagos.map(p => `<tr><td class="c-main">${fdate(p.fecha)}</td><td>${esc(p.metodo)}</td><td class="muted">${esc(p.referencia || '—')}</td><td class="right mono c-amt">${money(p.monto)}</td>
+      <td class="right mono" data-l="Retenciones">${retPago(p) ? `${money(retPago(p))}<span class="sub">${[num(p.retItbis) ? `ITBIS ${money(p.retItbis)}` : '', num(p.retIsr) ? `ISR ${money(p.retIsr)}` : ''].filter(Boolean).join(' · ')}</span>` : '<span class="muted">—</span>'}</td>
       <td class="right">${f.estado !== 'anulada' ? `<button class="icon-btn" title="Eliminar pago" onclick="A.borrarPago('${f.id}','${p.id}')">${icon('trash')}</button>` : ''}</td></tr>`).join('')}
     </tbody></table></div>` : `<div class="empty" style="padding:22px">Sin pagos registrados.</div>`}
   </div>` : ''}
@@ -1190,6 +1303,26 @@ function viewFactura(v, id) {
   ${notas.length ? `<div class="card mt"><div class="card-h">Notas de crédito aplicadas</div><table><tbody>
     ${notas.map(n => `<tr class="click" onclick="location.hash='#/facturas/${n.id}'"><td class="mono">${esc(n.numero)}</td><td class="mono small">${esc(n.ncf || '')}</td><td>${fdate(n.fecha)}</td><td class="right">-${money(calc(n).total)}</td></tr>`).join('')}
   </tbody></table></div>` : ''}
+
+  ${(() => {
+    // Costos asociados a esta venta (opción de la empresa "Asociar compras y gastos a una factura de venta")
+    const gs = gastosDeFactura(f);
+    if (esNota(f.tipo) || esEgreso(f.tipo) || (!e.gastosConFactura && !gs.length)) return '';
+    const costo = r2(gs.reduce((s, g) => s + calcG(g).base, 0)), margen = r2(t.base - costo);
+    return `<div class="card mt"><div class="card-h">Compras y gastos asociados<span class="sp"></span>
+      <button class="btn sm" onclick="A.gastoParaFactura('${f.id}')">${icon('plus')} Registrar gasto</button></div>
+      ${gs.length ? `<div class="tbl-wrap"><table class="tlist"><thead><tr><th>Fecha</th><th>Proveedor</th><th class="hide-sm">NCF</th><th class="right">Sin ITBIS</th><th class="right">Total</th></tr></thead><tbody>
+        ${gs.sort((a, b) => a.fecha.localeCompare(b.fecha)).map(g => `<tr class="click" onclick="A.editarGasto('${g.id}')"><td class="nowrap">${fdate(g.fecha)}</td>
+          <td class="c-main">${esc(g.proveedor?.nombre || '—')}${g.descripcion ? `<span class="sub">${esc(g.descripcion)}</span>` : ''}</td><td class="mono small hide-sm">${esc(g.ncf || '—')}</td>
+          <td class="right mono" data-l="Sin ITBIS">${money(calcG(g).base)}</td><td class="right mono c-amt">${money(calcG(g).total)}</td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="totals">
+        <div class="row"><span class="muted">Venta sin ITBIS</span><span>${money(t.base)}</span></div>
+        <div class="row"><span class="muted">Costos sin ITBIS</span><span>-${money(costo)}</span></div>
+        <div class="row big"><span>Margen</span><span style="color:${margen < 0 ? 'var(--red)' : 'var(--green)'}">${money(margen)}${t.base ? ` <span class="small muted">(${Math.round(margen / t.base * 100)}%)</span>` : ''}</span></div>
+      </div>` : `<div class="empty" style="padding:22px">Aún no hay compras ni gastos asociados a esta factura.</div>`}
+    </div>`;
+  })()}
 
   <div class="grid g2 mt">
     <div class="card"><div class="card-h">Notas / nota de impresión<span class="sp"></span>${f.estado !== 'anulada' ? `<button class="btn sm" onclick="A.editarNotas('${f.id}')">${icon('edit')} Editar</button>` : ''}</div>
@@ -2422,7 +2555,9 @@ function renderForm(v = $('#view')) {
         </div>
       </div>
     </div>
-  </div>`;
+  </div>
+  <div class="form-bar"><div class="t"><small>Total</small><b id="form-bar-total">RD$0.00</b></div>
+    <button class="btn primary" onclick="A.guardarFactura()">${d._edit ? 'Guardar' : 'Emitir'}</button></div>`;
   A.refreshTotals();
 }
 function itemRow(it, i) {
@@ -2430,12 +2565,12 @@ function itemRow(it, i) {
   return `<tr>
     <td><input class="in" list="prodlist" value="${esc(it.descripcion)}" placeholder="Producto o servicio" oninput="A.di(${i},'descripcion',this.value)" onchange="A.pickProd(${i},this.value)">
       ${it.sku ? `<span class="sub">SKU: ${esc(it.sku)}</span>` : ''}</td>
-    <td><input class="in num" type="number" step="any" min="0" value="${it.cantidad}" oninput="A.di(${i},'cantidad',this.value)"></td>
-    <td><input class="in num" type="number" step="0.01" min="0" value="${it.precio}" oninput="A.di(${i},'precio',this.value)"></td>
-    <td><input class="in num" type="number" step="any" min="0" max="100" value="${it.descuento || 0}" oninput="A.di(${i},'descuento',this.value)"></td>
-    <td><select class="in" onchange="A.di(${i},'itbis',+this.value)">${ITBIS_TASAS.map(t => `<option value="${t}" ${num(it.itbis) === t ? 'selected' : ''}>${t ? t + '%' : 'Exento / 0%'}</option>`).join('')}</select></td>
-    <td class="right mono" id="li-${i}">${money(base)}</td>
-    <td><button type="button" class="icon-btn" title="Quitar" onclick="A.delItem(${i})">${icon('trash')}</button></td></tr>`;
+    <td data-l="Cantidad"><input class="in num" type="number" inputmode="decimal" step="any" min="0" value="${it.cantidad}" oninput="A.di(${i},'cantidad',this.value)"></td>
+    <td data-l="Precio"><input class="in num" type="number" inputmode="decimal" step="0.01" min="0" value="${it.precio}" oninput="A.di(${i},'precio',this.value)"></td>
+    <td data-l="Desc. %"><input class="in num" type="number" inputmode="decimal" step="any" min="0" max="100" value="${it.descuento || 0}" oninput="A.di(${i},'descuento',this.value)"></td>
+    <td data-l="ITBIS"><select class="in" onchange="A.di(${i},'itbis',+this.value)">${ITBIS_TASAS.map(t => `<option value="${t}" ${num(it.itbis) === t ? 'selected' : ''}>${t ? t + '%' : 'Exento / 0%'}</option>`).join('')}</select></td>
+    <td data-l="Subtotal" class="right mono li-sub" id="li-${i}">${money(base)}</td>
+    <td class="li-del"><button type="button" class="icon-btn" title="Quitar" aria-label="Quitar línea" onclick="A.delItem(${i})">${icon('trash')}</button></td></tr>`;
 }
 A.df = (k, val, rerender) => { draft[k] = val; if (rerender) renderForm(); };
 A.di = (i, k, val) => {
@@ -2487,6 +2622,7 @@ function retenciones(f) {
 }
 A.refreshTotals = () => {
   const t = calc(draft), el = $('#form-totals'); if (!el) return;
+  const fb = $('#form-bar-total'); if (fb) fb.textContent = money(t.total);
   const nf = $('#neto-form');
   if (nf) { const n = netoCliente(draft); nf.innerHTML = n ? `Retenciones ${money(r2(n.itbis + n.isr))} → <b>Neto a pagar ${money(n.neto)}</b>` : '<span class="muted">El cliente paga el total.</span>'; }
   let extra = '';
@@ -2636,6 +2772,10 @@ function calcG(g) {
   return { base, total, aPagar: r2(total - num(g.itbisRetenido) - num(g.isrRetenido)) };
 }
 const esCompraG = g => g.clase === 'compra';
+// Facturas de venta a las que se puede asociar un gasto (opción de la empresa "gastosConFactura")
+const facturasParaGasto = actual => facturas().filter(f => f.id === actual || (vigente(f) && !esEgreso(f.tipo) && !esNota(f.tipo)))
+  .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.numero.localeCompare(a.numero)).slice(0, 500);
+const gastosDeFactura = f => gastos().filter(g => g.facturaVentaId === f.id);
 const pagadoG = g => g.formaPago !== '04' || !!g.pagado;
 const LG = { q: '', clase: '', estado: '', desde: '', hasta: '' };
 function viewGastos(v) {
@@ -2663,7 +2803,7 @@ function viewGastos(v) {
     <label class="chip-select"><span>Desde:</span><input type="date" value="${LG.desde}" onchange="A.lg('desde',this.value)"></label>
     <label class="chip-select"><span>Hasta:</span><input type="date" value="${LG.hasta}" onchange="A.lg('hasta',this.value)"></label>
   </div>
-  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Proveedor</th><th class="hide-sm">NCF</th><th class="hide-sm">Clasificación</th><th class="right">Total</th><th>Pago</th></tr></thead>
+  <div class="card"><div class="tbl-wrap"><table class="tlist"><thead><tr><th>Fecha</th><th>Proveedor</th><th class="hide-sm">NCF</th><th class="hide-sm">Clasificación</th><th class="right">Total</th><th>Pago</th></tr></thead>
     <tbody id="lg-body"></tbody></table></div><div class="table-foot" id="lg-foot"></div></div>`;
   fillGastos();
 }
@@ -2675,23 +2815,24 @@ function fillGastos() {
     if (LG.clase && (LG.clase === 'compra') !== esCompraG(g)) return false;
     if (LG.estado === 'pendiente' && pagadoG(g)) return false;
     if (LG.estado === 'pagado' && !pagadoG(g)) return false;
-    if (q && ![g.proveedor?.nombre, g.ncf, g.descripcion].join(' ').toLowerCase().includes(q) && !(qd.length >= 3 && digits(g.proveedor?.rnc).includes(qd))) return false;
+    if (q && ![g.proveedor?.nombre, g.ncf, g.descripcion, g.facturaVentaNumero].join(' ').toLowerCase().includes(q) && !(qd.length >= 3 && digits(g.proveedor?.rnc).includes(qd))) return false;
     return true;
   }).sort((a, b) => b.fecha.localeCompare(a.fecha));
   const body = $('#lg-body'); if (!body) return;
   body.innerHTML = list.length ? list.map(g => `<tr class="click" onclick="A.editarGasto('${g.id}')">
     <td class="nowrap">${fdate(g.fecha)}</td>
-    <td>${esc(g.proveedor?.nombre || '—')}<span class="sub">${g.proveedor?.rnc ? esc(fmtId(g.proveedor.rnc)) : 'Sin RNC'}${g.descripcion ? ' · ' + esc(g.descripcion) : ''}</span></td>
+    <td class="c-main">${esc(g.proveedor?.nombre || '—')}<span class="sub">${g.proveedor?.rnc ? esc(fmtId(g.proveedor.rnc)) : 'Sin RNC'}${g.descripcion ? ' · ' + esc(g.descripcion) : ''}${g.facturaVentaId ? ` · <a href="#/facturas/${g.facturaVentaId}" onclick="event.stopPropagation()" style="text-decoration:underline">Factura ${esc(getF(g.facturaVentaId)?.numero || g.facturaVentaNumero || '')}</a>` : ''}</span></td>
     <td class="mono small hide-sm">${esc(g.ncf || '—')}</td>
     <td class="hide-sm"><span class="pill ${esCompraG(g) ? 'purple' : 'amber'}">${esCompraG(g) ? 'Compra' : 'Gasto'}</span><span class="sub">${g.tipo606} · ${esc(TIPOS_606[g.tipo606] || '')}</span></td>
-    <td class="right mono">${money(calcG(g).total)}</td>
+    <td class="right mono c-amt">${money(calcG(g).total)}</td>
     <td>${pagadoG(g) ? '<span class="pill green">Pagado</span>' : `<span class="pill amber">Por pagar</span>`}</td></tr>`).join('')
     : `<tr><td colspan="6"><div class="empty">${gastos().length ? 'No hay registros con estos filtros.' : 'Aún no has registrado compras ni gastos.'}</div></td></tr>`;
   $('#lg-foot').innerHTML = `<span>${list.length} registros · Total ${money(r2(list.reduce((s, g) => s + calcG(g).total, 0)))}</span>`;
 }
-A.editarGasto = id => {
+A.gastoParaFactura = fid => A.editarGasto(null, { facturaVentaId: fid });
+A.editarGasto = (id, inicial = {}) => {
   if (DB.sinGastos) return toast('Primero ejecuta supabase/ecf6.sql en Supabase.', 'error');
-  const g = id ? getG(id) : { fecha: today(), proveedor: { nombre: '', rnc: '' }, ncf: '', ncfModificado: '', clase: 'gasto', tipo606: '02', descripcion: '', servicios: '', bienes: '', itbis: '', itbisRetenido: '', isrTipo: '', isrRetenido: '', selectivo: '', otros: '', propina: '', formaPago: '01', pagado: false, fechaPago: '', notas: '' };
+  const g = id ? getG(id) : { ...inicial, fecha: today(), proveedor: { nombre: '', rnc: '' }, ncf: '', ncfModificado: '', clase: 'gasto', tipo606: '02', descripcion: '', servicios: '', bienes: '', itbis: '', itbisRetenido: '', isrTipo: '', isrRetenido: '', selectivo: '', otros: '', propina: '', formaPago: '01', pagado: false, fechaPago: '', notas: '' };
   const n = v => num(v) ? num(v).toFixed(2) : '';
   const inp = (name, label, extra = '') => `<div class="field"><label>${label}</label><input class="in" name="${name}" type="number" step="0.01" min="0" value="${n(g[name])}" oninput="A.gastoTotal(this.form)" ${extra}></div>`;
   modal(id ? 'Editar compra o gasto' : 'Registrar compra o gasto', `
@@ -2706,6 +2847,9 @@ A.editarGasto = id => {
         <option value="gasto" ${!esCompraG(g) ? 'selected' : ''}>Gasto</option><option value="compra" ${esCompraG(g) ? 'selected' : ''}>Compra (mercancía / costo de venta)</option></select></div>
       <div class="field"><label>Clasificación 606</label><select class="in" name="tipo606">${Object.entries(TIPOS_606).map(([k, l]) => `<option value="${k}" ${g.tipo606 === k ? 'selected' : ''}>${k} · ${l}</option>`).join('')}</select></div>
       <div class="field" style="grid-column:1/-1"><label>Descripción</label><input class="in" name="descripcion" value="${esc(g.descripcion || '')}" placeholder="Ej.: Compra de repuestos, factura de luz…"></div>
+      ${emp().gastosConFactura || g.facturaVentaId ? `<div class="field" style="grid-column:1/-1"><label>Factura de venta asociada <span class="muted small">(opcional)</span></label>
+        <select class="in" name="facturaVentaId"><option value="">Ninguna</option>${facturasParaGasto(g.facturaVentaId).map(f => `<option value="${f.id}" ${g.facturaVentaId === f.id ? 'selected' : ''}>${esc(f.numero)}${f.ncf ? ' · ' + esc(f.ncf) : ''} · ${esc(f.cliente?.nombre || 'Consumidor Final')} · ${fdate(f.fecha)} · ${money(calc(f).total)}</option>`).join('')}</select>
+        <span class="hint small muted">Para saber cuánto costó atender esa venta.</span></div>` : ''}
       <div class="field"><label>NCF modificado (si es nota de crédito/débito)</label><input class="in mono" name="ncfModificado" value="${esc(g.ncfModificado || '')}" style="text-transform:uppercase"></div>
     </div>
     <div class="section-title">Montos</div>
@@ -2749,6 +2893,10 @@ A.editarGasto = id => {
         itbisRetenido: r2(num(fv(form, 'itbisRetenido'))), isrTipo: fv(form, 'isrTipo'), isrRetenido: r2(num(fv(form, 'isrRetenido'))),
         formaPago: fv(form, 'formaPago'), notas: fv(form, 'notas'),
       };
+      if (form.elements.facturaVentaId) {
+        const fv_ = getF(fv(form, 'facturaVentaId'));
+        data.facturaVentaId = fv_ ? fv_.id : ''; data.facturaVentaNumero = fv_ ? fv_.numero : '';
+      }
       data.pagado = data.formaPago !== '04' || !!fv(form, 'pagado');
       data.fechaPago = data.formaPago !== '04' ? data.fecha : data.pagado ? (fv(form, 'fechaPago') || today()) : '';
       if (calcG(data).total <= 0) { toast('Indica el monto del comprobante.', 'error'); return false; }
@@ -2949,7 +3097,7 @@ function viewClientes(v) {
     <button class="btn" onclick="A.exportClientes()">${icon('down')} CSV</button>
     <button class="btn primary" onclick="A.editarCliente()">${icon('plus')} Nuevo cliente</button></div>
   <div class="toolbar"><div class="search">${icon('search')}<input placeholder="Buscar por nombre, RNC, teléfono…" value="${esc(LC)}" oninput="LC_set(this.value)"></div></div>
-  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Nombre</th><th>RNC / Cédula</th><th class="hide-sm">Teléfono</th><th class="right hide-sm">Facturas</th><th class="right">Balance pendiente</th><th></th></tr></thead>
+  <div class="card"><div class="tbl-wrap"><table class="tlist"><thead><tr><th>Nombre</th><th>RNC / Cédula</th><th class="hide-sm">Teléfono</th><th class="right hide-sm">Facturas</th><th class="right">Balance pendiente</th><th></th></tr></thead>
   <tbody id="lc-body"></tbody></table></div><div class="table-foot" id="lc-foot"></div></div>`;
   fillClientes();
 }
@@ -2961,9 +3109,9 @@ function fillClientes() {
   $('#lc-body').innerHTML = list.length ? list.map(c => {
     const mis = fs.filter(f => f.clienteId === c.id && !esNota(f.tipo) && vigente(f));
     const bal = r2(mis.reduce((s, f) => s + saldo(f), 0));
-    return `<tr class="click" onclick="A.estadoCuenta('${c.id}')"><td style="font-weight:500">${esc(c.nombre)}${c.nombreComercial && c.nombreComercial !== c.nombre ? `<span class="sub">${esc(c.nombreComercial)}</span>` : ''}${c.email ? `<span class="sub">${esc(c.email)}</span>` : ''}${c.estadoDGII && c.estadoDGII.toUpperCase() !== 'ACTIVO' ? `<span class="pill red" style="margin-top:3px">DGII: ${esc(c.estadoDGII)}</span>` : ''}</td>
+    return `<tr class="click" onclick="A.estadoCuenta('${c.id}')"><td class="c-main" style="font-weight:500">${esc(c.nombre)}${c.nombreComercial && c.nombreComercial !== c.nombre ? `<span class="sub">${esc(c.nombreComercial)}</span>` : ''}${c.email ? `<span class="sub">${esc(c.email)}</span>` : ''}${c.estadoDGII && c.estadoDGII.toUpperCase() !== 'ACTIVO' ? `<span class="pill red" style="margin-top:3px">DGII: ${esc(c.estadoDGII)}</span>` : ''}</td>
       <td class="mono small">${c.rnc ? esc(fmtId(c.rnc)) : '<span class="muted">—</span>'}</td><td class="hide-sm">${esc(c.telefono || '')}</td>
-      <td class="right hide-sm">${mis.length}</td><td class="right ${bal > 0 ? '' : 'muted'}" style="${bal > 0 ? 'color:var(--amber);font-weight:600' : ''}">${money(bal)}</td>
+      <td class="right hide-sm">${mis.length}</td><td class="right c-amt ${bal > 0 ? '' : 'muted'}" style="${bal > 0 ? 'color:var(--amber);font-weight:600' : ''}">${money(bal)}</td>
       <td class="right nowrap" onclick="event.stopPropagation()"><button class="icon-btn" title="Editar" onclick="A.editarCliente('${c.id}')">${icon('edit')}</button>
       <button class="icon-btn" title="Eliminar" onclick="A.borrarCliente('${c.id}')">${icon('trash')}</button></td></tr>`;
   }).join('') : `<tr><td colspan="6"><div class="empty">${clientes().length ? 'Sin resultados.' : 'Aún no tienes clientes registrados.'}</div></td></tr>`;
@@ -3073,9 +3221,9 @@ A.estadoCuenta = id => {
       <div class="card kpi"><div class="l">Balance pendiente</div><div class="v" style="font-size:19px;color:${bal > 0 ? 'var(--amber)' : 'inherit'}">${money(bal)}</div></div>
       <div class="card kpi"><div class="l">RNC / Cédula</div><div class="v mono" style="font-size:17px">${esc(fmtId(c.rnc) || '—')}</div></div>
     </div>
-    ${fs.length ? `<div class="card tbl-wrap"><table><thead><tr><th>Número</th><th>NCF</th><th>Fecha</th><th class="right">Total</th><th class="right">Saldo</th><th>Estado</th></tr></thead><tbody>
-      ${fs.map(f => `<tr class="click" onclick="A.closeModal();location.hash='#/facturas/${f.id}'"><td class="mono">${esc(f.numero)}</td><td class="mono small">${esc(f.ncf || '—')}</td><td class="nowrap">${fdate(f.fecha)}</td>
-      <td class="right">${esNota(f.tipo) ? '-' : ''}${money(calc(f).total)}</td><td class="right">${money(saldo(f))}</td><td>${pill(estado(f))}</td></tr>`).join('')}
+    ${fs.length ? `<div class="card tbl-wrap"><table class="tlist"><thead><tr><th>Número</th><th>NCF</th><th>Fecha</th><th class="right">Total</th><th class="right">Saldo</th><th>Estado</th></tr></thead><tbody>
+      ${fs.map(f => `<tr class="click" onclick="A.closeModal();location.hash='#/facturas/${f.id}'"><td class="mono c-main">${esc(f.numero)}</td><td class="mono small">${esc(f.ncf || '—')}</td><td class="nowrap">${fdate(f.fecha)}</td>
+      <td class="right c-amt">${esNota(f.tipo) ? '-' : ''}${money(calc(f).total)}</td><td class="right" data-l="Saldo">${money(saldo(f))}</td><td>${pill(estado(f))}</td></tr>`).join('')}
     </tbody></table></div>` : '<div class="empty">Este cliente no tiene facturas.</div>'}
     <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
       <button type="button" class="btn" onclick="A.closeModal();A.editarCliente('${c.id}')">${icon('edit')} Editar cliente</button>
@@ -3099,7 +3247,7 @@ function viewProductos(v) {
     <button class="btn" onclick="A.exportProductos()">${icon('down')} CSV</button>
     <button class="btn primary" onclick="A.editarProducto()">${icon('plus')} Nuevo</button></div>
   <div class="toolbar"><div class="search">${icon('search')}<input placeholder="Buscar por descripción o SKU…" value="${esc(LP)}" oninput="LP_set(this.value)"></div></div>
-  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Descripción</th><th class="hide-sm">Tipo</th><th class="right">Precio</th><th class="right">ITBIS</th><th class="right hide-sm">Precio + ITBIS</th><th></th></tr></thead>
+  <div class="card"><div class="tbl-wrap"><table class="tlist"><thead><tr><th>SKU</th><th>Descripción</th><th class="hide-sm">Tipo</th><th class="right">Precio</th><th class="right">ITBIS</th><th class="right hide-sm">Precio + ITBIS</th><th></th></tr></thead>
   <tbody id="lp-body"></tbody></table></div><div class="table-foot" id="lp-foot"></div></div>`;
   fillProductos();
 }
@@ -3108,9 +3256,9 @@ function fillProductos() {
   const q = LP.toLowerCase().trim();
   const list = productos().filter(p => !q || (p.descripcion + ' ' + (p.sku || '')).toLowerCase().includes(q));
   $('#lp-body').innerHTML = list.length ? list.map(p => `<tr class="click" onclick="A.editarProducto('${p.id}')">
-    <td class="mono small">${esc(p.sku || '—')}</td><td style="font-weight:500">${esc(p.descripcion)}</td>
+    <td class="mono small">${esc(p.sku || '—')}</td><td class="c-main" style="font-weight:500">${esc(p.descripcion)}</td>
     <td class="hide-sm"><span class="tag">${p.tipo === 'servicio' ? 'Servicio' : 'Bien'}</span></td>
-    <td class="right mono">${money(p.precio)}</td><td class="right">${num(p.itbis) ? num(p.itbis) + '%' : 'Exento'}</td>
+    <td class="right mono c-amt">${money(p.precio)}</td><td class="right">${num(p.itbis) ? num(p.itbis) + '%' : 'Exento'}</td>
     <td class="right mono hide-sm">${money(r2(num(p.precio) * (1 + num(p.itbis) / 100)))}</td>
     <td class="right" onclick="event.stopPropagation()"><button class="icon-btn" title="Eliminar" onclick="A.borrarProducto('${p.id}')">${icon('trash')}</button></td></tr>`).join('')
     : `<tr><td colspan="7"><div class="empty">${productos().length ? 'Sin resultados.' : 'Agrega tus productos y servicios para facturar más rápido.'}</div></td></tr>`;
@@ -3298,9 +3446,9 @@ function repResumen(el) {
   </div>
   <div class="grid" style="grid-template-columns:2fr 1fr">
     <div class="card"><div class="card-h">Por tipo de comprobante<span class="sp"></span><button class="btn sm" onclick="A.csvResumen()">${icon('down')} CSV</button></div>
-      <div class="tbl-wrap"><table><thead><tr><th>Comprobante</th><th class="right">Cant.</th><th class="right">Monto sin ITBIS</th><th class="right">ITBIS</th><th class="right">Total</th></tr></thead><tbody>
-      ${orden.length ? orden.map(t => { const g = grupos[t]; return `<tr><td>${t === TIPO_NONE ? '' : `<span class="tag">${t}</span> `}${nombreTipo(t)}</td><td class="right">${g.n}</td><td class="right">${money(g.base)}</td><td class="right">${money(g.itbis)}</td><td class="right">${money(g.total)}</td></tr>`; }).join('')
-        + `<tr style="font-weight:700"><td>Total</td><td class="right">${tot.n}</td><td class="right">${money(tot.base)}</td><td class="right">${money(tot.itbis)}</td><td class="right">${money(tot.total)}</td></tr>`
+      <div class="tbl-wrap"><table class="tlist"><thead><tr><th>Comprobante</th><th class="right">Cant.</th><th class="right">Monto sin ITBIS</th><th class="right">ITBIS</th><th class="right">Total</th></tr></thead><tbody>
+      ${orden.length ? orden.map(t => { const g = grupos[t]; return `<tr><td class="c-main">${t === TIPO_NONE ? '' : `<span class="tag">${t}</span> `}${nombreTipo(t)}</td><td class="right" data-l="Cant.">${g.n}</td><td class="right" data-l="Sin ITBIS">${money(g.base)}</td><td class="right" data-l="ITBIS">${money(g.itbis)}</td><td class="right c-amt">${money(g.total)}</td></tr>`; }).join('')
+        + `<tr style="font-weight:700"><td class="c-main">Total</td><td class="right" data-l="Cant.">${tot.n}</td><td class="right" data-l="Sin ITBIS">${money(tot.base)}</td><td class="right" data-l="ITBIS">${money(tot.itbis)}</td><td class="right c-amt">${money(tot.total)}</td></tr>`
         : `<tr><td colspan="5"><div class="empty">Sin ventas en el período.</div></td></tr>`}
       </tbody></table></div></div>
     <div class="card"><div class="card-h">Cobros por método</div><table><tbody>
@@ -3391,8 +3539,8 @@ function rep608(el) {
     .sort((a, b) => a.anulada.fecha.localeCompare(b.anulada.fecha));
   el.innerHTML = `
   <div class="card"><div class="card-h">${rows.length} comprobantes anulados<span class="sp"></span><button class="btn sm" id="csv608">${icon('down')} Exportar CSV</button></div>
-  <div class="tbl-wrap"><table><thead><tr><th>NCF</th><th>Factura</th><th>Fecha comprobante</th><th>Fecha anulación</th><th>Tipo de anulación</th></tr></thead><tbody>
-  ${rows.length ? rows.map(f => `<tr class="click" onclick="location.hash='#/facturas/${f.id}'"><td class="mono">${esc(f.ncf)}</td><td class="mono">${esc(f.numero)}</td><td>${fdate(f.fecha)}</td><td>${fdate(f.anulada.fecha)}</td><td>${f.anulada.motivo} · ${esc(MOTIVOS_ANULACION[f.anulada.motivo] || '')}</td></tr>`).join('')
+  <div class="tbl-wrap"><table class="tlist"><thead><tr><th>NCF</th><th>Factura</th><th>Fecha comprobante</th><th>Fecha anulación</th><th>Tipo de anulación</th></tr></thead><tbody>
+  ${rows.length ? rows.map(f => `<tr class="click" onclick="location.hash='#/facturas/${f.id}'"><td class="mono c-main">${esc(f.ncf)}</td><td class="mono c-amt">${esc(f.numero)}</td><td data-l="Emitido">${fdate(f.fecha)}</td><td data-l="Anulado">${fdate(f.anulada.fecha)}</td><td>${f.anulada.motivo} · ${esc(MOTIVOS_ANULACION[f.anulada.motivo] || '')}</td></tr>`).join('')
     : `<tr><td colspan="5"><div class="empty">Sin anulaciones en el período.</div></td></tr>`}
   </tbody></table></div></div>`;
   $('#csv608').onclick = () => downloadCSV(fname('608'), [['Número Comprobante Fiscal', 'Fecha Comprobante', 'Tipo de Anulación'], ...rows.map(f => [f.ncf, f.anulada.fecha.replace(/-/g, ''), f.anulada.motivo])]);
@@ -3431,8 +3579,8 @@ function repProductos(el) {
   }));
   const list = Object.values(m).sort((a, b) => b.base - a.base);
   el.innerHTML = `<div class="card"><div class="card-h">Ventas por producto/servicio<span class="sp"></span><button class="btn sm" id="csvprod">${icon('down')} Exportar CSV</button></div>
-  <div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Descripción</th><th class="right">Cantidad</th><th class="right">Monto sin ITBIS</th><th class="right">ITBIS</th></tr></thead><tbody>
-  ${list.length ? list.map(r => `<tr><td class="mono small">${esc(r.sku || '—')}</td><td>${esc(r.desc)}</td><td class="right">${r2(r.cant)}</td><td class="right">${money(r.base)}</td><td class="right">${money(r.itbis)}</td></tr>`).join('')
+  <div class="tbl-wrap"><table class="tlist"><thead><tr><th>SKU</th><th>Descripción</th><th class="right">Cantidad</th><th class="right">Monto sin ITBIS</th><th class="right">ITBIS</th></tr></thead><tbody>
+  ${list.length ? list.map(r => `<tr><td class="mono small">${esc(r.sku || '—')}</td><td class="c-main">${esc(r.desc)}</td><td class="right" data-l="Cant.">${r2(r.cant)}</td><td class="right c-amt">${money(r.base)}</td><td class="right" data-l="ITBIS">${money(r.itbis)}</td></tr>`).join('')
     : `<tr><td colspan="5"><div class="empty">Sin ventas en el período.</div></td></tr>`}
   </tbody></table></div></div>`;
   $('#csvprod').onclick = () => downloadCSV(fname('ventas-por-producto'), [['SKU', 'Descripción', 'Cantidad', 'Monto sin ITBIS', 'ITBIS'], ...list.map(r => [r.sku, r.desc, r2(r.cant), r2(r.base), r2(r.itbis)])]);
@@ -3483,9 +3631,9 @@ A.editarEmpresa = id => {
       <div class="field"><label>Sitio web</label><input class="in" name="web" value="${esc(e.web)}"></div>
       <div class="field" style="grid-column:1/-1"><label>Dirección</label><input class="in" name="direccion" value="${esc(e.direccion)}"></div>
       <div class="field" style="grid-column:1/-1"><label>Logo</label>
-        <div style="display:flex;gap:12px;align-items:center">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
           <div id="logo-prev">${logoTmp ? `<img src="${logoTmp}" style="width:56px;height:56px;object-fit:contain;border-radius:8px;background:var(--soft)">` : `<div class="emp-logo" style="width:56px;height:56px">—</div>`}</div>
-          <input type="file" accept="image/*" onchange="A.logoFile(this)">
+          <input type="file" accept="image/*" onchange="A.logoFile(this)" style="min-width:0;max-width:100%;flex:1 1 180px">
           <button type="button" class="btn sm" onclick="A.logoClear()">Quitar</button>
         </div></div>
       <div class="field"><label>Tamaño del logo en las facturas</label><select class="in" name="logoTam">
@@ -3499,6 +3647,8 @@ A.editarEmpresa = id => {
       <div class="field"><label>Condición predeterminada</label><select class="in" name="condicionPredeterminada"><option value="contado" ${e.condicionPredeterminada !== 'credito' ? 'selected' : ''}>Contado</option><option value="credito" ${e.condicionPredeterminada === 'credito' ? 'selected' : ''}>Crédito</option></select></div>
       <div class="field"><label>ITBIS predeterminado</label><select class="in" name="itbisPredeterminado">${ITBIS_TASAS.map(t => `<option value="${t}" ${num(e.itbisPredeterminado ?? 18) === t ? 'selected' : ''}>${t ? t + '%' : 'Exento / 0%'}</option>`).join('')}</select></div>
       <div class="field" style="grid-column:1/-1"><label>Nota al pie (predeterminada en cada factura)</label><textarea class="in" name="notaPie" rows="2" placeholder="Ej.: Gracias por su compra. Cuentas bancarias: …">${esc(e.notaPie || '')}</textarea></div>
+      <div class="field" style="grid-column:1/-1"><label class="check" style="font-weight:500"><input type="checkbox" name="gastosConFactura" ${e.gastosConFactura ? 'checked' : ''}> Asociar compras y gastos a una factura de venta</label>
+        <span class="hint small muted">Agrega en Compras y gastos el campo opcional "Factura de venta asociada" y muestra en cada factura sus costos y el margen.</span></div>
     </div>
     <div class="section-title">Régimen tributario</div>
     <div class="fgrid">
@@ -3515,12 +3665,12 @@ A.editarEmpresa = id => {
     <div class="tbl-wrap"><table class="seq-tbl"><thead><tr><th>Activa</th><th>Tipo</th><th>Desde</th><th>Hasta</th><th>Último usado</th><th>Vence</th></tr></thead><tbody>
     ${Object.keys(NCF_TIPOS).map(t => {
       const s = (e.secuencias || {})[t] || { activo: false, desde: 1, hasta: '', actual: 0, vence: venceDef };
-      return `<tr><td><input type="checkbox" name="s_${t}_activo" ${s.activo ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--primary)"></td>
+      return `<tr><td data-tipo="${t} · ${esc(nombreTipo(t))}"><input type="checkbox" name="s_${t}_activo" ${s.activo ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--primary)"></td>
         <td class="nowrap"><span class="tag">${t}</span> <span class="small">${nombreTipo(t)}</span></td>
-        <td><input class="in" type="number" min="1" name="s_${t}_desde" value="${s.desde ?? 1}" style="width:90px"></td>
-        <td><input class="in" type="number" min="1" name="s_${t}_hasta" value="${s.hasta ?? ''}" style="width:90px" placeholder="—"></td>
-        <td><input class="in" type="number" min="0" name="s_${t}_actual" value="${s.actual ?? 0}" style="width:90px"></td>
-        <td><input class="in" type="date" name="s_${t}_vence" value="${s.vence || ''}"></td></tr>`;
+        <td data-l="Desde"><input class="in" type="number" inputmode="numeric" min="1" name="s_${t}_desde" value="${s.desde ?? 1}" style="width:90px"></td>
+        <td data-l="Hasta"><input class="in" type="number" inputmode="numeric" min="1" name="s_${t}_hasta" value="${s.hasta ?? ''}" style="width:90px" placeholder="—"></td>
+        <td data-l="Último usado"><input class="in" type="number" inputmode="numeric" min="0" name="s_${t}_actual" value="${s.actual ?? 0}" style="width:90px"></td>
+        <td data-l="Vence"><input class="in" type="date" name="s_${t}_vence" value="${s.vence || ''}"></td></tr>`;
     }).join('')}</tbody></table></div>
     <div class="hint small muted" style="margin-top:6px">"Último usado" es el último número emitido (0 si no has usado ninguno). El próximo NCF será el siguiente número.</div>`,
     {
@@ -3537,7 +3687,7 @@ A.editarEmpresa = id => {
         }
         const data = {
           nombre, rnc, razonSocial: fv(form, 'razonSocial'), actividad: fv(form, 'actividad'), estadoDGII: fv(form, 'estadoDGII'), telefono: fv(form, 'telefono'), email: fv(form, 'email'), web: fv(form, 'web'), direccion: fv(form, 'direccion'),
-          logo: logoTmp || '', logoTam: fv(form, 'logoTam') || 'M', prefijo: fv(form, 'prefijo') || 'INV', proximoNumero: Math.max(1, num(fv(form, 'proximoNumero'))),
+          logo: logoTmp || '', logoTam: fv(form, 'logoTam') || 'M', gastosConFactura: !!fv(form, 'gastosConFactura'), prefijo: fv(form, 'prefijo') || 'INV', proximoNumero: Math.max(1, num(fv(form, 'proximoNumero'))),
           tipoPredeterminado: fv(form, 'tipoPredeterminado'), condicionPredeterminada: fv(form, 'condicionPredeterminada'),
           itbisPredeterminado: num(fv(form, 'itbisPredeterminado')), notaPie: fv(form, 'notaPie'), secuencias,
           regimen: fv(form, 'regimen') || 'ordinario', rstPersona: fv(form, 'rstPersona'),
