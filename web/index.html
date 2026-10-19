@@ -630,11 +630,11 @@ function seqInfo(e, tipo) {
 }
 
 /* ---------- UI primitives ---------- */
-function toast(msg, type = '') {
+function toast(msg, type = '', ms) {
   const t = document.createElement('div');
   t.className = 'toast ' + type; t.textContent = msg;
   $('#toast').appendChild(t);
-  setTimeout(() => t.remove(), type === 'error' ? 5000 : 2600);
+  setTimeout(() => t.remove(), ms || (type === 'error' ? 5000 : 2600));
 }
 let modalOk = null;
 function modal(title, body, { okText = 'Guardar', onOk = null, wide = false, danger = false, cancelText = 'Cancelar', noFooter = false } = {}) {
@@ -2018,6 +2018,10 @@ function textoWhatsapp(f) {
 A.whatsapp = async id => {
   const f = getF(id); if (!f) return;
   const tel = telefonoWhatsapp(f.cliente?.telefono || getC(f.clienteId)?.telefono), texto = textoWhatsapp(f);
+  // WhatsApp (sobre todo en Android) descarta el texto cuando se comparte un archivo: se copia el mensaje
+  // ahora, mientras dura el toque del botón (después de generar el PDF el navegador ya no deja copiar).
+  let copiado = false;
+  try { navigator.clipboard?.writeText(texto).then(() => { copiado = true; }, () => { }); } catch (e) { }
   busy(true, 'Preparando el PDF…');
   let archivo;
   try { archivo = new File([await pdfFactura(f)], nombrePdf(f), { type: 'application/pdf' }); }
@@ -2034,9 +2038,10 @@ A.whatsapp = async id => {
   };
   if (navigator.canShare && navigator.canShare(datos)) {
     try {
+      if (copiado) toast('Mensaje copiado: en el chat de WhatsApp mantén presionado y elige "Pegar".', 'ok', 9000);
       if (await compartir()) return;
       // Generar el PDF tomó tiempo: hace falta que la persona toque de nuevo para abrir el menú de compartir
-      modal('El PDF está listo', `<p style="margin:0">Toca <b>Enviar</b> y elige WhatsApp y el contacto.</p>`, {
+      modal('El PDF está listo', `<p style="margin:0">Toca <b>Enviar</b> y elige WhatsApp y el contacto.${copiado ? ' El mensaje ya está copiado: pégalo en el chat.' : ''}</p>`, {
         okText: 'Enviar', danger: false, onOk: async () => { try { await navigator.share(datos); } catch (e) { } },
       });
       return;
