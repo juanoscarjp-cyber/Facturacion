@@ -1,7 +1,7 @@
 // Service worker de Facturación RD: permite instalar la app y abrirla aunque la conexión falle.
 // Los datos siempre vienen de Supabase y de /api (nunca se guardan aquí); solo se guarda la "cáscara" de la app.
-const CACHE = 'facturacion-rd-v1';
-const BASICOS = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
+const CACHE = 'facturacion-rd-v2';
+const BASICOS = ['/', '/manifest.webmanifest', '/icons/logo.svg', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', ev => {
   ev.waitUntil(caches.open(CACHE).then(c => c.addAll(BASICOS)).then(() => self.skipWaiting()));
