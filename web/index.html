@@ -563,6 +563,7 @@ const ICONS = {
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   down: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
   undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>',
+  wa: '<path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9L3 21"/><path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1a5 5 0 0 0 5 5h1a.5.5 0 0 0 0-1h-1a.5.5 0 0 0 0 1"/>',
   cart: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/>',
   hash: '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>',
   cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
@@ -1118,6 +1119,7 @@ function viewFactura(v, id) {
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" onclick="A.imprimir('${f.id}')">${icon('print')} Imprimir</button>
       <button class="btn" onclick="A.imprimir('${f.id}',true)">${icon('receipt')} Ticket</button>
+      <button class="btn" onclick="A.whatsapp('${f.id}')"><span style="color:#25D366;display:inline-flex">${icon('wa')}</span> WhatsApp</button>
       ${sal > 0 ? `<button class="btn primary" onclick="A.registrarPago('${f.id}')">${icon('cash')} Registrar pago</button>` : ''}
     </div>
   </div>
@@ -1951,6 +1953,106 @@ A.simAnularRechazados = () => {
     busy(false); toast(`${n} comprobantes anulados.`, 'ok'); route(true);
   }, { okText: 'Anular' });
 };
+/* ---------- PDF de la factura (hoja carta) y envío por WhatsApp ---------- */
+// Genera el PDF de la factura tal como se imprime (cartaHTML). Con unaPagina se achica a una hoja; si no, se reparte en varias.
+async function pdfFactura(f, { unaPagina = false } = {}) {
+  await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');
+  await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  const caja = document.createElement('div');
+  // Ancho = área imprimible de una hoja carta con márgenes de 10 mm (215.9 − 20 = 195.9 mm ≈ 740 px)
+  // En la esquina (0,0) detrás de la página: fuera de pantalla html2canvas recorta mal el contenido.
+  caja.style.cssText = 'position:absolute;left:0;top:0;width:740px;z-index:-1;background:#fff;color:#000;font-size:12px;box-sizing:border-box';
+  window.scrollTo(0, 0);
+  document.body.appendChild(caja);
+  try {
+    caja.innerHTML = cartaHTML(f);
+    await Promise.all([...caja.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
+    const doc = caja.firstElementChild;
+    doc.style.width = '740px'; doc.style.boxSizing = 'border-box';
+    // Se captura el documento completo y se escala al área imprimible: no depende del ancho de la pantalla.
+    const canvas = await html2canvas(doc, { scale: 2, backgroundColor: '#ffffff', width: doc.scrollWidth, height: doc.scrollHeight, windowWidth: Math.max(1200, doc.scrollWidth), scrollX: 0, scrollY: 0 });
+    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'letter', orientation: 'portrait' });
+    const margen = 10, anchoUtil = 215.9 - 2 * margen, altoUtil = 279.4 - 2 * margen;
+    const hTotal = canvas.height * anchoUtil / canvas.width;
+    if (unaPagina || hTotal <= altoUtil) {
+      let w = anchoUtil, h = hTotal;
+      if (h > altoUtil) { w = w * altoUtil / h; h = altoUtil; }
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', margen, margen, w, h);
+    } else {
+      // Varias hojas: se corta la imagen en franjas del alto de una página
+      const pxPorPagina = Math.floor(canvas.width * altoUtil / anchoUtil);
+      for (let y = 0, pag = 0; y < canvas.height; y += pxPorPagina, pag++) {
+        const alto = Math.min(pxPorPagina, canvas.height - y);
+        const trozo = document.createElement('canvas'); trozo.width = canvas.width; trozo.height = alto;
+        const ctx = trozo.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, trozo.width, alto);
+        ctx.drawImage(canvas, 0, y, canvas.width, alto, 0, 0, canvas.width, alto);
+        if (pag) pdf.addPage();
+        pdf.addImage(trozo.toDataURL('image/jpeg', 0.9), 'JPEG', margen, margen, anchoUtil, alto * anchoUtil / canvas.width);
+      }
+    }
+    return pdf.output('blob');
+  } finally { caja.remove(); }
+}
+// 809/829/849 + 7 dígitos → número internacional (1809…) para wa.me
+function telefonoWhatsapp(tel) {
+  const d = digits(tel);
+  if (d.length === 10 && /^8[024]9/.test(d)) return '1' + d;
+  if (d.length === 11 && d.startsWith('1')) return d;
+  return d.length >= 10 ? d : '';
+}
+const nombrePdf = f => `${f.fecha} - ${f.cliente?.nombre || 'Consumidor Final'} - ${f.ncf || f.numero}.pdf`.replace(/[/\\:*?"<>|]/g, '');
+function textoWhatsapp(f) {
+  const e = emp(), t = calc(f), n = netoCliente(f), c = f.cliente?.nombre && f.cliente.nombre !== 'Consumidor Final' ? f.cliente.nombre : '';
+  const doc = esNota(f.tipo) ? 'la nota de crédito' : f.tipo === 'E33' ? 'la nota de débito' : 'la factura';
+  const lineas = [`Hola${c ? ', ' + c : ''}. Le enviamos ${doc} ${f.ncf ? `${f.ncf} (${f.numero})` : f.numero} del ${fdate(f.fecha)} por ${money(t.total)}.`];
+  if (n) lineas.push(`Neto a pagar (después de retenciones): ${money(n.neto)}.`);
+  const pend = porCobrarNeto(f);
+  if (f.condicion === 'credito' && pend > 0 && !(n && pend === n.neto)) lineas.push(`Balance pendiente: ${money(pend)}${f.vencimiento ? `, vence el ${fdate(f.vencimiento)}` : ''}.`);
+  if (esECF(f.tipo) && f.ecf?.qr && ['Aceptado', 'Aceptado Condicional'].includes(f.ecf.estado)) lineas.push(`Puede verificar este comprobante en la DGII: ${f.ecf.qr}`);
+  lineas.push('', e?.nombre || '');
+  return lineas.join('\n').trim();
+}
+// Celular: menú de compartir con el PDF adjunto (ahí se elige WhatsApp y el contacto).
+// PC: descarga el PDF y ofrece abrir WhatsApp con el mensaje para adjuntarlo desde Descargas.
+A.whatsapp = async id => {
+  const f = getF(id); if (!f) return;
+  const tel = telefonoWhatsapp(f.cliente?.telefono || getC(f.clienteId)?.telefono), texto = textoWhatsapp(f);
+  busy(true, 'Preparando el PDF…');
+  let archivo;
+  try { archivo = new File([await pdfFactura(f)], nombrePdf(f), { type: 'application/pdf' }); }
+  catch (err) { busy(false); return toast('No se pudo generar el PDF: ' + errMsg(err), 'error'); }
+  busy(false);
+  const datos = { files: [archivo], title: archivo.name, text: texto };
+  const compartir = async () => {
+    try { await navigator.share(datos); return true; }
+    catch (err) {
+      if (err.name === 'AbortError') return true;   // canceló el menú
+      if (err.name === 'NotAllowedError') return false; // el navegador pide otro toque
+      throw err;
+    }
+  };
+  if (navigator.canShare && navigator.canShare(datos)) {
+    try {
+      if (await compartir()) return;
+      // Generar el PDF tomó tiempo: hace falta que la persona toque de nuevo para abrir el menú de compartir
+      modal('El PDF está listo', `<p style="margin:0">Toca <b>Enviar</b> y elige WhatsApp y el contacto.</p>`, {
+        okText: 'Enviar', danger: false, onOk: async () => { try { await navigator.share(datos); } catch (e) { } },
+      });
+      return;
+    } catch (err) { /* si compartir falla, se usa la opción de PC */ }
+  }
+  download(archivo.name, archivo, 'application/pdf');
+  const url = `https://wa.me/${tel}?text=${encodeURIComponent(texto)}`;
+  modal('Enviar por WhatsApp', `
+    <div class="alert info mb"><div>Se descargó <b>${esc(archivo.name)}</b>. Abre WhatsApp y adjunta ese archivo desde tu carpeta de <b>Descargas</b>.</div></div>
+    <div class="field"><label>Mensaje</label><textarea class="in" rows="6" readonly>${esc(texto)}</textarea></div>
+    ${tel ? `<div class="small muted">Se abrirá el chat con <b>${esc(fmtTel(tel))}</b>.</div>` : `<div class="small muted">El cliente no tiene teléfono registrado: elige el contacto en WhatsApp.</div>`}`, {
+    okText: 'Abrir WhatsApp', danger: false, onOk: () => { window.open(url, '_blank', 'noopener'); },
+  });
+};
+const fmtTel = t => t.length === 11 ? `(${t.slice(1, 4)}) ${t.slice(4, 7)}-${t.slice(7)}` : t;
+
 // Paso 5: una representación impresa (PDF) por tipo, de los e-CF aceptados en la simulación
 const RI_CAMPOS = [
   ['31', 'E31-'], ['32 >= RD$250mil', 'E32-1', 'E32-2'], ['33', 'E33-'], ['34', 'E34-'], ['41', 'E41-'], ['43', 'E43-'],
@@ -1965,31 +2067,12 @@ A.simPDFs = async () => {
   if (faltan.length === lista.length) return toast('No hay comprobantes aceptados de la simulación (Paso 4) en esta empresa.', 'error');
   busy(true, 'Generando representaciones impresas…');
   try {
-    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');
-    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-    const caja = document.createElement('div');
-    // Ancho = área imprimible de una hoja carta con márgenes de 10 mm (215.9 − 20 = 195.9 mm ≈ 740 px)
-    // En la esquina (0,0) detrás de la página: fuera de pantalla html2canvas recorta mal el contenido.
-    caja.style.cssText = 'position:absolute;left:0;top:0;width:740px;z-index:-1;background:#fff;color:#000;font-size:12px;box-sizing:border-box';
-    window.scrollTo(0, 0);
-    document.body.appendChild(caja);
     let total = 0;
     for (const { campo, s } of lista.filter(x => x.s)) {
       const f = getF(s.facturaId);
       busy(true, `Generando PDF tipo ${campo}…`);
-      caja.innerHTML = cartaHTML(f);
-      await Promise.all([...caja.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
-      const doc = caja.firstElementChild;
-      doc.style.width = '740px'; doc.style.boxSizing = 'border-box';
-      // Se captura el documento completo y se escala al área imprimible: no depende del ancho de la pantalla.
-      const canvas = await html2canvas(doc, { scale: 2, backgroundColor: '#ffffff', width: doc.scrollWidth, height: doc.scrollHeight, windowWidth: Math.max(1200, doc.scrollWidth), scrollX: 0, scrollY: 0 });
-      const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'letter', orientation: 'portrait' });
-      const margen = 10, anchoUtil = 215.9 - 2 * margen, altoUtil = 279.4 - 2 * margen;
-      let w = anchoUtil, h = canvas.height * anchoUtil / canvas.width;
-      if (h > altoUtil) { w = w * altoUtil / h; h = altoUtil; }
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.9), 'JPEG', margen, margen, w, h);
-      const blob = pdf.output('blob');
+      // La DGII pide cada representación impresa en una sola hoja
+      const blob = await pdfFactura(f, { unaPagina: true });
       total += blob.size;
       const etiqueta = campo.includes('>=') ? '32 (250 mil o mas)' : campo.includes('<') ? '32 (menos de 250 mil)' : campo;
       const nombre = `RI tipo ${etiqueta} - ${f.ncf}.pdf`;
@@ -1997,7 +2080,6 @@ A.simPDFs = async () => {
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
       await new Promise(r => setTimeout(r, 400));
     }
-    caja.remove();
     toast(`${lista.length - faltan.length} PDF generados (${(total / 1048576).toFixed(1)} MB en total).${faltan.length ? ' Faltan tipos: ' + faltan.join(', ') : ''}`, faltan.length ? 'error' : 'ok');
   } catch (err) { toast('No se pudieron generar los PDF: ' + errMsg(err), 'error'); }
   finally { busy(false); }
