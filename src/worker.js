@@ -4,7 +4,7 @@
 import {
   construirECF, construirRFCE, calcularECF, signTree, importPrivateKey, obtenerToken, enviarECF, enviarRFCE,
   consultarResultado, urlTimbre, fechaHoraRD, b64, unb64, LIMITE_RFCE, AMBIENTES, parseXml, construirDesdeFila, ESQUEMAS, ESQUEMA_ACECF, enviarACECF,
-  verificarFirma, texto, construirARECF, construirACECF, serialize,
+  verificarFirma, texto, construirARECF, construirACECF, serialize, construirANECF, enviarANECF,
 } from './ecf.js';
 
 const SB_URL = 'https://gwvqpnmwqvqrmsbpwmhj.supabase.co';
@@ -56,6 +56,7 @@ export default {
         if (ruta === 'firmar') return json(await firmarXmlLibre(env, jwt, body));
         if (ruta === 'set') return json(await procesarSet(env, jwt, body));
         if (ruta === 'aprobar') return json(await aprobarRecibido(env, jwt, body));
+        if (ruta === 'anular') return json(await anularRango(env, jwt, body));
         return json({ ok: false, error: 'Ruta no encontrada' }, 404);
       } catch (err) {
         return json({ ok: false, error: String(err && err.message || err) }, 400);
@@ -467,6 +468,40 @@ async function aprobarRecibido(env, jwt, { recibidoId, aprobado, motivo }) {
   } catch (e) { resultado.emisor = { error: String(e.message || e) }; }
   await sb(jwt, `ecf_recibidos?id=eq.${recibidoId}`, { method: 'PATCH', body: JSON.stringify({ aprobacion: resultado }), headers: { prefer: 'return=minimal' } });
   return { ok: true, aprobacion: resultado };
+}
+
+// Anulación (ANECF) de un rango de e-NCF que no se usó. Protegida con una clave para evitar anulaciones por error
+// (secreto ANULACION_CLAVE en Cloudflare; si no existe, la clave es 2309). Solo dueños y administradores.
+async function anularRango(env, jwt, { empresaId, tipo, desde, hasta, clave }) {
+  if (String(clave || '') !== String(env.ANULACION_CLAVE || '2309')) throw new Error('Clave de anulación incorrecta.');
+  if (!empresaId) throw new Error('Falta la empresa.');
+  if (!/^E(31|32|33|34|41|43|44|45|46|47)$/.test(tipo || '')) throw new Error('Tipo de e-CF inválido.');
+  desde = Number(desde); hasta = Number(hasta);
+  if (!Number.isInteger(desde) || !Number.isInteger(hasta) || desde < 1 || hasta < desde || hasta > 9999999999) throw new Error('Rango inválido: "Hasta" debe ser mayor o igual que "Desde".');
+  if (!(await sb(jwt, 'rpc/es_admin', { method: 'POST', body: JSON.stringify({ e: empresaId }) }))) throw new Error('Solo el dueño o un administrador puede anular comprobantes.');
+  const encf = n => tipo + String(n).padStart(10, '0');
+  // Un e-NCF ya emitido no se anula con ANECF (se anula con nota de crédito)
+  const usados = await sb(jwt, `facturas?empresa_id=eq.${empresaId}&ncf=gte.${encf(desde)}&ncf=lte.${encf(hasta)}&select=ncf&order=ncf&limit=5`);
+  if (usados && usados.length) throw new Error(`El rango incluye comprobantes ya emitidos (${usados.map(u => u.ncf).join(', ')}${usados.length === 5 ? '…' : ''}). Esos se anulan con una nota de crédito, no con ANECF.`);
+  const emp = uno(await sb(jwt, `empresas?id=eq.${empresaId}&select=data`));
+  const rncEmisor = soloDigitos(emp && emp.data && emp.data.rnc);
+  if (!/^\d{9}(\d{2})?$/.test(rncEmisor)) throw new Error('La empresa no tiene un RNC válido.');
+  const s = await firmante(env, jwt, empresaId);
+  const fechaHora = fechaHoraRD();
+  const { xml } = await signTree(construirANECF({ rncEmisor, tipo: tipo.slice(1), desde, hasta, fechaHora }), s.privateKey, s.cert);
+  const token = await obtenerToken(s.ambiente, s.privateKey, s.cert, rncEmisor);
+  const d = await enviarANECF(s.ambiente, token, xml, rncEmisor + encf(desde) + '.xml');
+  console.log('ANECF', JSON.stringify({ rncEmisor, tipo, desde, hasta, ambiente: s.ambiente, codigo: d.codigo, nombre: d.nombre, mensajes: d.mensajes }));
+  // Si se anularon números que la app aún no había usado, la secuencia salta después del rango para no emitirlos
+  let secuenciaAvanzada = false;
+  try {
+    const upd = await sb(jwt, `secuencias?empresa_id=eq.${empresaId}&tipo=eq.${tipo}&actual=lt.${hasta}`, { method: 'PATCH', body: JSON.stringify({ actual: hasta }), headers: { prefer: 'return=representation' } });
+    secuenciaAvanzada = !!(upd && upd.length);
+  } catch (e) { console.log('ANECF: no se pudo avanzar la secuencia', String(e.message || e)); }
+  return {
+    ok: true, ambiente: s.ambiente, tipo, desde: encf(desde), hasta: encf(hasta), cantidad: hasta - desde + 1, fecha: new Date().toISOString(),
+    codigo: d.codigo ?? '', nombre: d.nombre || '', mensajes: d.mensajes, secuenciaAvanzada, xml,
+  };
 }
 
 // Firma con el certificado de la empresa un XML cualquiera (p. ej. los que pide la DGII en la postulación).

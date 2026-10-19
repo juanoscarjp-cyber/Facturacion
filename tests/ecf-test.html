@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Pruebas e-CF</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xmldsigjs@2.5.1/build/xmldsig.js"></script>
+<style>body{font:13px system-ui;margin:20px} pre{white-space:pre-wrap;word-break:break-all;background:#f5f5f5;padding:10px} .ok{color:green} .bad{color:#b00}</style>
+</head>
+<body>
+<h1>Pruebas del módulo e-CF</h1>
+<p>Genera un certificado de prueba (autofirmado), construye y firma e-CF de ejemplo y verifica la firma con xmldsigjs.</p>
+<div id="out">Ejecutando…</div>
+<script type="module">
+import { construirECF, construirRFCE, signTree, parseXml, importPrivateKey, c14n, b64 } from '../src/ecf.js';
+
+const out = document.getElementById('out');
+const log = (html) => { out.innerHTML += html + '<br>'; };
+out.innerHTML = '';
+window.RESULTS = {};
+
+// Certificado de prueba
+const keys = forge.pki.rsa.generateKeyPair(2048);
+const cert = forge.pki.createCertificate();
+cert.publicKey = keys.publicKey; cert.serialNumber = '01';
+cert.validity.notBefore = new Date(); cert.validity.notAfter = new Date(Date.now() + 365 * 864e5);
+const attrs = [{ name: 'commonName', value: 'PRUEBA FIRMANTE' }, { name: 'serialNumber', value: '00100000001' }];
+cert.setSubject(attrs); cert.setIssuer(attrs); cert.sign(keys.privateKey, forge.md.sha256.create());
+const pkcs8 = forge.util.encode64(forge.asn1.toDer(forge.pki.wrapRsaPrivateKey(forge.pki.privateKeyToAsn1(keys.privateKey))).getBytes());
+const certB64 = forge.util.encode64(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes());
+const privateKey = await importPrivateKey(pkcs8);
+log('Certificado de prueba generado.');
+
+XmlDSigJs.Application.setEngine('WebCrypto', crypto);
+async function verificar(xml) {
+  const doc = XmlDSigJs.Parse(xml);
+  const sigEl = doc.getElementsByTagNameNS('http://www.w3.org/2000/09/xmldsig#', 'Signature')[0];
+  const sx = new XmlDSigJs.SignedXml(doc);
+  sx.LoadXml(sigEl);
+  return sx.Verify();
+}
+
+const empresa = { rnc: '101000001', razonSocial: 'TALLER DEMO, S.R.L.', nombre: 'Taller Demo', direccion: 'Av. Ejemplo #10, Santiago & Co "Centro"', telefono: '(809) 555-0100', email: 'info@tallerdemo.do', actividad: 'REPARACION DE VEHICULOS' };
+const cliente = { nombre: "Constructora O'Neill & Hijos SRL", rnc: '130450455', direccion: 'Calle 1 #5', email: 'compras@cliente.do' };
+const items = [
+  { productoId: 'p1', sku: '00502', descripcion: 'Filtro de aire', cantidad: 1, precio: 1000, descuento: 0, itbis: 18, tipo: 'bien' },
+  { productoId: 'p2', sku: '01015', descripcion: 'Mano de obra', cantidad: 2, precio: 550, descuento: 10, itbis: 18, tipo: 'servicio' },
+  { productoId: 'p3', sku: '', descripcion: 'Libro técnico (exento)', cantidad: 1.5, precio: 333.3333, descuento: 0, itbis: 0 },
+  { productoId: 'p4', sku: '', descripcion: 'Producto 16%', cantidad: 3, precio: 99.99, descuento: 0, itbis: 16 },
+];
+const casos = {
+  E31: { tipo: 'E31', ncf: 'E310000000001', fecha: '2026-10-13', numero: 'INV-0001', items, propina: true, condicion: 'credito', vencimiento: '2026-11-12', pagos: [{ metodo: 'Transferencia', monto: 1000 }], cliente },
+  E32: { tipo: 'E32', ncf: 'E320000000001', fecha: '2026-10-13', numero: 'INV-0002', items: items.slice(0, 2), propina: false, condicion: 'contado', pagos: [{ metodo: 'Efectivo', monto: 2168.20 }], cliente: { nombre: 'Consumidor Final' } },
+  E34: { tipo: 'E34', ncf: 'E340000000001', fecha: '2026-12-20', numero: 'NC-0001', items: items.slice(1, 2), propina: false, condicion: 'contado', cliente, notas: 'Devolución parcial' },
+  E44: { tipo: 'E44', ncf: 'E440000000001', fecha: '2026-10-13', numero: 'INV-0003', items: items.slice(2, 3), condicion: 'contado', pagos: [], cliente },
+  E45: { tipo: 'E45', ncf: 'E450000000001', fecha: '2026-10-13', numero: 'INV-0004', items: items.slice(0, 2), condicion: 'credito', vencimiento: '2026-11-12', pagos: [], cliente: { nombre: 'Ayuntamiento Demo', rnc: '401000044' } },
+  E33: { tipo: 'E33', ncf: 'E330000000001', fecha: '2026-10-20', numero: 'INV-0005', items: [{ descripcion: 'Cargo por flete adicional', cantidad: 1, precio: 500, descuento: 0, itbis: 18, tipo: 'servicio' }], condicion: 'contado', pagos: [], cliente, notas: 'Flete no incluido' },
+  E41: { tipo: 'E41', ncf: 'E410000000001', fecha: '2026-10-13', numero: 'INV-0006', items: [{ descripcion: 'Servicio de plomería', cantidad: 2, precio: 1500, descuento: 0, itbis: 18, tipo: 'servicio' }], condicion: 'contado', pagos: [{ metodo: 'Efectivo', monto: 3540 }], cliente: { nombre: 'Pedro Informal', rnc: '00100000001' }, retencion: { itbis: 100, isr: 10 } },
+  E43: { tipo: 'E43', ncf: 'E430000000001', fecha: '2026-10-13', numero: 'INV-0007', items: [{ descripcion: 'Arreglo de neumático', cantidad: 1, precio: 350, descuento: 0, itbis: 0, tipo: 'servicio' }], condicion: 'contado', pagos: [], cliente: {} },
+  E46: { tipo: 'E46', ncf: 'E460000000001', fecha: '2026-10-13', numero: 'INV-0008', items: [{ descripcion: 'Aguacate criollo', sku: 'AGU-1', cantidad: 100, precio: 180, descuento: 0, itbis: 0, tipo: 'bien' }], condicion: 'credito', vencimiento: '2026-11-12', pagos: [], cliente: { nombre: 'Fruit Imports LLC', idExtranjero: 'US-99-1234567' } },
+  E47: { tipo: 'E47', ncf: 'E470000000001', fecha: '2026-10-13', numero: 'INV-0009', items: [{ descripcion: 'Asesoría contable', cantidad: 1, precio: 115000, descuento: 0, itbis: 0, tipo: 'servicio' }], condicion: 'contado', pagos: [{ metodo: 'Transferencia', monto: 115000 }], cliente: { nombre: 'Consulting Partners Inc', idExtranjero: '350555123' }, retencion: { isr: 27 } },
+};
+for (const [k, f] of Object.entries(casos)) {
+  try {
+    const original = k === 'E34' || k === 'E33' ? { ncf: 'E310000000001', fecha: '2026-10-13', total: 4000 } : null;
+    const { root, data, calc } = construirECF({ factura: f, empresa, original, vencimientoSecuencia: '2028-12-31', fechaHoraFirma: '13-10-2026 10:15:00' });
+    const { xml, signatureValue } = await signTree(root, privateKey, certB64);
+    const ok = await verificar(xml);
+    RESULTS[k] = xml;
+    log(`${k}: total ${calc.total.toFixed(2)} · firma <b class="${ok ? 'ok' : 'bad'}">${ok ? 'VÁLIDA' : 'INVÁLIDA'}</b> · código seguridad ${signatureValue.slice(0, 6)}`);
+    if (k === 'E32') {
+      const rf = construirRFCE({ ecfData: data, codigoSeguridad: signatureValue.slice(0, 6) });
+      const r = await signTree(rf, privateKey, certB64);
+      const ok2 = await verificar(r.xml);
+      RESULTS.RFCE = r.xml;
+      log(`RFCE: firma <b class="${ok2 ? 'ok' : 'bad'}">${ok2 ? 'VÁLIDA' : 'INVÁLIDA'}</b>`);
+    }
+  } catch (e) { log(`<b class="bad">${k}: ${e.message}</b>`); console.error(e); }
+}
+// Semilla con namespaces (como la entrega la DGII)
+const semillaTxt = '<?xml version="1.0" encoding="utf-8"?>\r\n<SemillaModel xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">\r\n  <valor>0xggeol2rfxxmt22g4abxa91ycxblmyeci6h1+519rudfci&amp;x</valor>\r\n  <fecha>2022-07-27T11:59:31.3551245-04:00</fecha>\r\n</SemillaModel>';
+const sem = parseXml(semillaTxt);
+const s = await signTree(sem, privateKey, certB64);
+const okS = await verificar(s.xml);
+RESULTS.semilla = s.xml;
+log(`Semilla: firma <b class="${okS ? 'ok' : 'bad'}">${okS ? 'VÁLIDA' : 'INVÁLIDA'}</b>`);
+// Verificación negativa: alterar el XML firmado debe invalidar la firma
+const alterado = RESULTS.E31.replace('<MontoTotal>', '<MontoTotal>9');
+let neg; try { neg = await verificar(alterado); } catch { neg = false; }
+log(`XML alterado: ${neg ? '<b class="bad">ACEPTADO (error)</b>' : '<b class="ok">rechazado correctamente</b>'}`);
+// Validación contra los XSD oficiales (copias en tests/xsd)
+const { validarXSD } = await import('./xsd-validate.js');
+const xsdDe = { E31: 'ecf31', E32: 'ecf32', E33: 'ecf33', E34: 'ecf34', E41: 'ecf41', E43: 'ecf43', E44: 'ecf44', E45: 'ecf45', E46: 'ecf46', E47: 'ecf47', RFCE: 'rfce32', semilla: 'semilla' };
+window.XSD_ERRORES = {};
+for (const [k, f] of Object.entries(xsdDe)) {
+  if (!RESULTS[k]) continue;
+  const errs = validarXSD(RESULTS[k], await (await fetch(`./xsd/${f}.xsd`)).text());
+  XSD_ERRORES[k] = errs;
+  log(`XSD ${k}: ${errs.length ? '<b class="bad">' + errs.length + ' errores</b><br>' + errs.map(e => '&nbsp;&nbsp;• ' + e).join('<br>') : '<b class="ok">válido</b>'}`);
+}
+log('<pre>' + RESULTS.E31.replace(/</g, '&lt;') + '</pre>');
+window.DONE = true;
+</script>
+</body>
+</html>

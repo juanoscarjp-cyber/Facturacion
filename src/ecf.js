@@ -284,6 +284,22 @@ export function construirACECF({ rncEmisor, encf, fechaEmision, montoTotal, rncC
   return root;
 }
 
+// Anulación de un rango de e-NCF no utilizados (ANECF). desde/hasta: números de secuencia.
+export function construirANECF({ rncEmisor, tipo, desde, hasta, fechaHora }) {
+  const encf = n => 'E' + tipo + String(n).padStart(10, '0');
+  const cantidad = String(hasta - desde + 1);
+  const [root] = buildFromSkeleton(['ANECF!', [
+    ['Encabezado!', ['Version!', 'RncEmisor!', 'CantidadeNCFAnulados!', 'FechaHoraAnulacioneNCF!']],
+    ['DetalleAnulacion!', [['Anulacion!', ['NoLinea!', 'TipoeCF!', ['TablaRangoSecuenciasAnuladaseNCF!', [['Secuencias!', ['SecuenciaeNCFDesde!', 'SecuenciaeNCFHasta!']]]], 'CantidadeNCFAnulados!']]]],
+  ]], {
+    ANECF: {
+      Encabezado: { Version: '1.0', RncEmisor: rncEmisor, CantidadeNCFAnulados: cantidad, FechaHoraAnulacioneNCF: fechaHora },
+      DetalleAnulacion: { Anulacion: { NoLinea: 1, TipoeCF: tipo, TablaRangoSecuenciasAnuladaseNCF: { Secuencias: { SecuenciaeNCFDesde: encf(desde), SecuenciaeNCFHasta: encf(hasta) } }, CantidadeNCFAnulados: cantidad } },
+    },
+  });
+  return root;
+}
+
 /* ---------------------------------------------------------------------------
    Formatos
    --------------------------------------------------------------------------- */
@@ -568,6 +584,15 @@ export async function enviarACECF(ambiente, token, xml, fileName) {
   const d = await leerRespuesta(r);
   if (!r.ok && !d.estado) throw new Error('DGII aprobación comercial: ' + ([].concat(d.mensaje || []).join(' · ') || d.message || d.raw || `HTTP ${r.status}`));
   return d;
+}
+
+// Anulación de rangos de e-NCF (ANECF). Responde { rnc, codigo, nombre, mensajes }.
+export async function enviarANECF(ambiente, token, xml, fileName) {
+  const r = await fetch(AMBIENTES[ambiente].ecf + '/anulacionrangos/api/operaciones/anularrango', multipart(xml, fileName, { 'user-agent': UA, accept: 'application/json', authorization: 'Bearer ' + token }));
+  const d = await leerRespuesta(r);
+  const msgs = [].concat(d.mensajes || d.mensaje || []).map(m => (typeof m === 'string' ? m : (m && (m.valor || m.mensaje)) || '')).filter(Boolean);
+  if (!r.ok) throw new Error('DGII anulación: ' + ([d.nombre, ...msgs, d.message, d.raw].filter(Boolean).join(' · ') || `HTTP ${r.status}`));
+  return { ...d, mensajes: msgs };
 }
 
 export async function consultarResultado(ambiente, token, trackId) {

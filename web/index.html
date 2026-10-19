@@ -3035,6 +3035,13 @@ function viewSecuencias(v) {
   </div>
   ${inactivas.length && esAdmin() ? `<div class="card mt"><div class="card-h">Otros tipos de comprobante (inactivos)</div><div class="card-b" style="display:flex;gap:8px;flex-wrap:wrap">
     ${inactivas.map(({ t }) => `<button class="btn sm" onclick="A.nuevaSecuencia('${t}')">${icon('plus')} ${t} · ${esc(nombreTipo(t))}</button>`).join('')}</div></div>` : ''}
+  ${esAdmin() && activas.some(x => esECF(x.t)) ? `<div class="card mt"><div class="card-h">Anular e-NCF no utilizados</div><div class="card-b" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+    <p class="small muted" style="margin:0;flex:1;min-width:240px">Si saltaste números de una secuencia electrónica, infórmalos a la DGII como anulados (ANECF). Solo para números que <b>nunca se emitieron</b>; un comprobante emitido se anula con nota de crédito.</p>
+    <button class="btn danger" onclick="A.anularRangoNCF()">${icon('ban')} Anular rango</button></div></div>` : ''}
+  ${(e.anulacionesNCF || []).length ? `<div class="card mt"><div class="card-h">Anulaciones enviadas a la DGII</div><div class="tbl-wrap"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Rango</th><th class="right">Cantidad</th><th>Respuesta DGII</th><th></th></tr></thead><tbody>
+    ${e.anulacionesNCF.map((a, i) => [a, i]).reverse().map(([a, i]) => `<tr><td class="nowrap">${fdate(a.fecha.slice(0, 10))}</td><td><span class="tag">${a.tipo}</span></td><td class="mono small">${a.desde} – ${a.hasta}</td><td class="right">${num(a.cantidad).toLocaleString('en-US')}</td><td class="small">${esc([a.codigo, a.nombre].filter(x => x !== '' && x != null).join(' · ') || '—')}${(a.mensajes || []).length ? `<div class="muted">${esc(a.mensajes.join(' · '))}</div>` : ''}${a.ambiente && a.ambiente !== 'ecf' ? `<div class="muted">${esc(AMBIENTES_ECF[a.ambiente] || a.ambiente)}</div>` : ''}</td>
+      <td>${a.xml ? `<button class="btn sm ghost" onclick="A.xmlAnulacion(${i})">${icon('down')} XML</button>` : ''}</td></tr>`).join('')}
+  </tbody></table></div></div>` : ''}
   ${(e.historialNCF || []).length ? `<div class="card mt"><div class="card-h">Historial de autorizaciones</div><div class="tbl-wrap"><table><thead><tr><th>Registrada</th><th>Tipo</th><th>Rango</th><th>Vence</th><th>Autorización DGII</th></tr></thead><tbody>
     ${e.historialNCF.slice().reverse().map(h => `<tr><td class="nowrap">${fdate(h.fecha)}</td><td><span class="tag">${h.tipo}</span></td><td class="mono small">${ncf(h.tipo, h.desde)} – ${h.hasta ? ncf(h.tipo, h.hasta) : '…'}</td><td>${h.vence ? fdate(h.vence) : '—'}</td><td class="mono small">${esc(h.autorizacion || '—')}</td></tr>`).join('')}
   </tbody></table></div></div>` : ''}`;
@@ -3074,6 +3081,50 @@ A.desactivarSecuencia = t => confirmar('Desactivar ' + t, `Ya no podrás emitir 
   chk(await sb.from('secuencias').upsert(seqRow(e.id, t, s), { onConflict: 'empresa_id,tipo' }));
   await reloadEmpresa(e.id); route(true);
 }, { okText: 'Desactivar' });
+// Anulación (ANECF) de e-NCF que nunca se emitieron: la firma y el envío ocurren en el Worker, que también verifica la clave
+A.anularRangoNCF = () => {
+  const e = emp();
+  const tipos = Object.keys(NCF_TIPOS).filter(t => esECF(t) && e.secuencias?.[t]?.activo);
+  modal('Anular e-NCF no utilizados', `
+    <div class="alert warn mb"><div>La anulación se envía a la DGII y <b>no se puede deshacer</b>. Esos números quedarán inutilizables. Ambiente: <b id="anular-amb">…</b>.</div></div>
+    <div class="fgrid">
+      <div class="field"><label>Tipo de e-CF</label><select class="in" name="tipo" oninput="A.anularPrev(this.form)">${tipos.map(t => `<option value="${t}">${t} · ${esc(nombreTipo(t))}</option>`).join('')}</select></div>
+      <div class="field"><label>Desde (número)</label><input class="in" name="desde" type="number" min="1" required oninput="A.anularPrev(this.form)"></div>
+      <div class="field"><label>Hasta (número)</label><input class="in" name="hasta" type="number" min="1" required oninput="A.anularPrev(this.form)"></div>
+      <div class="field"><label>Clave de anulación</label><input class="in" name="clave" type="password" inputmode="numeric" autocomplete="off" required></div>
+    </div>
+    <div class="small muted" id="anular-prev" style="margin-top:8px"></div>`, {
+    okText: 'Anular en la DGII', danger: true, onOk: async form => {
+      const tipo = fv(form, 'tipo'), desde = num(fv(form, 'desde')), hasta = num(fv(form, 'hasta')), clave = fv(form, 'clave');
+      if (!(desde >= 1) || !(hasta >= desde)) { toast('"Hasta" debe ser mayor o igual que "Desde".', 'error'); return false; }
+      if (!clave) { toast('Escribe la clave de anulación.', 'error'); return false; }
+      busy(true, 'Enviando la anulación a la DGII…');
+      let r;
+      try { r = await apiECF('anular', { empresaId: e.id, tipo, desde, hasta, clave }); } finally { busy(false); }
+      const { ok, ...registro } = r;
+      const fresca = emp();
+      chk(await sb.from('empresas').update({ data: { ...empresaData(fresca), anulacionesNCF: [...(fresca.anulacionesNCF || []), registro] } }).eq('id', fresca.id));
+      await reloadEmpresa(e.id);
+      toast(`Anulación enviada: ${r.desde} – ${r.hasta}. DGII: ${[r.codigo, r.nombre].filter(x => x !== '').join(' · ') || 'recibida'}`, 'ok', 8000);
+      route(true);
+    },
+  });
+  A.anularPrev($('#modal-root form'));
+  sb.from('ecf_config').select('ambiente').eq('empresa_id', e.id).then(r => {
+    const el = $('#anular-amb'), amb = r.data?.[0]?.ambiente;
+    if (el) el.textContent = amb ? AMBIENTES_ECF[amb] || amb : 'sin certificado digital';
+  });
+};
+A.anularPrev = form => {
+  const t = fv(form, 'tipo'), d = num(fv(form, 'desde')), h = num(fv(form, 'hasta'));
+  $('#anular-prev').innerHTML = d >= 1 && h >= d
+    ? `Se anularán <b>${(h - d + 1).toLocaleString('en-US')}</b> e-NCF: <span class="mono">${t}${pad(d, 10)}</span> al <span class="mono">${t}${pad(h, 10)}</span>.`
+    : 'Escribe el rango de números que no se usaron.';
+};
+A.xmlAnulacion = i => {
+  const e = emp(), a = (e.anulacionesNCF || [])[i];
+  if (a && a.xml) download(`${String(e.rnc || '').replace(/\D/g, '')}${a.desde}-anulacion.xml`, a.xml, 'text/xml');
+};
 A.alertaNCF = () => {
   const e = emp();
   modal('Alerta de comprobantes', `<div class="field"><label>Avisarme cuando queden (comprobantes)</label><input class="in" name="n" type="number" min="0" value="${num(e.alertaNCF) || ''}" placeholder="Automático: 10 o el 10% del rango"></div>
