@@ -14,6 +14,26 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Facturación">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<script>
+// Navegadores muy antiguos (Safari < 13.1, iOS < 13.4…) no entienden el JavaScript de la app y la dejarían en blanco:
+// se avisa qué hacer. Este bloque usa solo JavaScript antiguo a propósito.
+(function () {
+  var ok = true;
+  try { new Function('var a = {}; return a?.b ?? 1')(); } catch (e) { ok = false; }
+  if (ok) return;
+  window.NAVEGADOR_ANTIGUO = true;
+  document.addEventListener('DOMContentLoaded', function () {
+    document.body.innerHTML = '<div style="font:16px/1.5 -apple-system,Segoe UI,Arial,sans-serif;max-width:520px;margin:12vh auto;padding:24px;color:#14151a">'
+      + '<div style="width:56px;height:56px;border-radius:14px;background:#e11d48;color:#fff;font:700 30px Arial;display:flex;align-items:center;justify-content:center;margin-bottom:18px">F</div>'
+      + '<h1 style="font-size:22px;margin:0 0 10px">Tu navegador es demasiado antiguo</h1>'
+      + '<p style="margin:0 0 14px;color:#555b66">Facturación RD necesita un navegador actualizado para funcionar.</p>'
+      + '<p style="margin:0 0 8px"><b>En Mac:</b> actualiza macOS (Menú  → Preferencias del Sistema → Actualización de software) para tener Safari 13.1 o más reciente, '
+      + 'o instala <a href="https://www.google.com/chrome/" style="color:#1d4ed8">Google Chrome</a> y abre la app ahí. '
+      + 'Si tu Mac es muy antigua y Chrome no abre, usa <a href="https://www.mozilla.org/firefox/organizations/" style="color:#1d4ed8">Firefox ESR</a>.</p>'
+      + '<p style="margin:0"><b>En iPhone o iPad:</b> actualiza a iOS 13.4 o más reciente (Ajustes → General → Actualización de software).</p></div>';
+  });
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"></script>
 <style>
 :root{
@@ -492,6 +512,8 @@ const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'o
 /* ---------- Supabase ---------- */
 const SUPABASE_URL = 'https://gwvqpnmwqvqrmsbpwmhj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_JG_uubMg9brkjoIz7x-Xmw_uCyvz3F6'; // clave pública (publishable); la seguridad la dan las políticas RLS
+// Enlace del correo de invitación (#…type=invite): al entrar se le pide crear su contraseña
+const LLEGO_POR_INVITACION = /type=invite/.test(location.hash);
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let SESSION = null;
 let BOOTING = true;
@@ -988,12 +1010,13 @@ A.miCuenta = () => {
     }
   });
 };
-function pedirNuevaPassword() {
-  modal('Nueva contraseña', `<div class="field"><label>Escribe tu nueva contraseña</label><input class="in" name="password" type="password" minlength="6" autocomplete="new-password" required></div>`, {
+function pedirNuevaPassword(bienvenida) {
+  modal(bienvenida ? 'Bienvenido a Facturación RD' : 'Nueva contraseña', `${bienvenida ? `<p style="margin:0 0 12px">Aceptaste la invitación${SESSION?.user?.user_metadata?.empresa ? ` de <b>${esc(SESSION.user.user_metadata.empresa)}</b>` : ''}. Crea una contraseña para entrar la próxima vez con tu correo <b>${esc(SESSION?.user?.email || '')}</b>.</p>` : ''}
+    <div class="field"><label>${bienvenida ? 'Crea tu contraseña' : 'Escribe tu nueva contraseña'}</label><input class="in" name="password" type="password" minlength="6" autocomplete="new-password" required></div>`, {
     okText: 'Guardar', onOk: async form => {
       const p = form.elements.password.value;
       if (p.length < 6) { toast('Mínimo 6 caracteres.', 'error'); return false; }
-      chk(await sb.auth.updateUser({ password: p })); toast('Contraseña actualizada', 'ok');
+      chk(await sb.auth.updateUser({ password: p, ...(bienvenida ? { data: { debeCambiarPassword: false } } : {}) })); toast('Contraseña actualizada', 'ok');
     }
   });
 }
@@ -3773,19 +3796,66 @@ A.equipo = async eid => {
         <option value="usuario" ${m.rol === 'usuario' ? 'selected' : ''}>Usuario</option><option value="admin" ${m.rol === 'admin' ? 'selected' : ''}>Administrador</option></select>` : ROL[m.rol]}</td>
       <td class="right">${m.rol !== 'dueno' && (admin || m.user_id === yo) ? `<button type="button" class="btn sm danger" onclick="A.quitarMiembro('${eid}','${m.user_id}')">${m.user_id === yo ? 'Salir' : 'Quitar'}</button>` : ''}</td></tr>`).join('')}
     ${invit.map(i => `<tr><td>${esc(i.email)} <span class="pill amber">Invitación pendiente</span></td><td>${ROL[i.rol]}</td>
-      <td class="right"><button type="button" class="btn sm" onclick="A.cancelarInvitacion('${eid}','${esc(i.email)}')">Cancelar</button></td></tr>`).join('')}
+      <td class="right nowrap"><button type="button" class="btn sm primary" onclick="A.crearUsuario('${eid}','${esc(i.email)}')">Crear usuario</button>
+        <button type="button" class="btn sm" onclick="correoInvitacion('${eid}','${esc(i.email)}')">Reenviar correo</button>
+        <button type="button" class="btn sm" onclick="A.cancelarInvitacion('${eid}','${esc(i.email)}')">Cancelar</button></td></tr>`).join('')}
     </tbody></table></div>
     ${admin ? `<div class="section-title">Invitar a un usuario</div>
     <div class="fgrid"><div class="field"><label>Email</label><input class="in" name="email" type="email" placeholder="empleado@correo.com"></div>
       <div class="field"><label>Rol</label><select class="in" name="rol"><option value="usuario">Usuario (factura y cobra)</option><option value="admin">Administrador (también configura la empresa y el equipo)</option></select></div></div>
-    <p class="small muted">La persona debe crear su cuenta (o iniciar sesión) con ese mismo email y confirmarlo. Al entrar, verá esta empresa automáticamente.</p>` : ''}`,
+    <p class="small muted">Le llegará un correo con un enlace para crear su contraseña y entrar. Si ya tiene cuenta, verá esta empresa la próxima vez que inicie sesión.</p>` : ''}`,
     admin ? { okText: 'Enviar invitación', cancelText: 'Cerrar', wide: true, onOk: async form => {
       const email = fv(form, 'email').toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { toast('Escribe un email válido.', 'error'); return false; }
       if (miembros.some(m => (m.email || '').toLowerCase() === email)) { toast('Esa persona ya es miembro.', 'error'); return false; }
       chk(await sb.from('invitaciones').upsert({ empresa_id: eid, email, rol: fv(form, 'rol') }));
-      toast('Invitación registrada', 'ok'); A.equipo(eid);
+      await correoInvitacion(eid, email);
+      A.equipo(eid);
     } } : { wide: true, cancelText: 'Cerrar' });
+};
+// Pide al servidor que Supabase envíe el correo de invitación (la invitación ya quedó registrada)
+async function correoInvitacion(eid, email) {
+  busy(true, 'Enviando correo de invitación…');
+  try {
+    const { data } = await sb.auth.getSession();
+    const r = await fetch('/api/invitar', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + (data.session?.access_token || '') }, body: JSON.stringify({ empresaId: eid, email }) });
+    if (!(r.headers.get('content-type') || '').includes('json')) throw new Error('El envío de correos solo funciona en la app publicada.');
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'No se pudo enviar el correo.');
+    toast(d.yaRegistrado ? `${email} ya tiene cuenta: verá la empresa al iniciar sesión.` : `Invitación enviada a ${email}.`, 'ok', 6000);
+  } catch (err) {
+    toast(`La invitación quedó registrada, pero el correo no se envió: ${errMsg(err)}`, 'error', 9000);
+  } finally { busy(false); }
+}
+// Crea la cuenta del invitado con una contraseña temporal (sin depender del correo). Al entrar se une a la empresa
+// y la app le pide cambiar la contraseña.
+A.crearUsuario = (eid, email) => {
+  const letras = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const azar = crypto.getRandomValues(new Uint32Array(10));
+  const temporal = Array.from(azar, n => letras[n % letras.length]).join('');
+  modal('Crear usuario', `
+    <p style="margin:0 0 12px">Se creará la cuenta de <b>${esc(email)}</b> con una contraseña temporal. Al iniciar sesión entrará a esta empresa y la app le pedirá cambiarla.</p>
+    <div class="field"><label>Contraseña temporal</label><input class="in mono" name="password" value="${temporal}" minlength="8" autocomplete="off"></div>
+    <div class="hint small muted" style="margin-top:6px">Mínimo 8 caracteres. Puedes dejar la que se generó.</div>`, {
+    okText: 'Crear usuario', danger: false, onOk: async form => {
+      const password = form.elements.password.value.trim();
+      if (password.length < 8) { toast('La contraseña debe tener al menos 8 caracteres.', 'error'); return false; }
+      const { data } = await sb.auth.getSession();
+      const r = await fetch('/api/crear-usuario', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + (data.session?.access_token || '') }, body: JSON.stringify({ empresaId: eid, email, password }) });
+      if (!(r.headers.get('content-type') || '').includes('json')) throw new Error('Esta opción solo funciona en la app publicada.');
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || 'No se pudo crear el usuario.');
+      if (d.yaRegistrado) { setTimeout(() => modal('Ya tiene cuenta', `<p style="margin:0"><b>${esc(email)}</b> ya tiene una cuenta. Al iniciar sesión con su contraseña verá esta empresa. Si la olvidó, puede usar "¿Olvidaste tu contraseña?" en la pantalla de inicio.</p>`, { noFooter: true }), 50); return; }
+      const texto = `Hola. Te creé un usuario en Facturación RD (${emp()?.nombre || ''}).\nEntra en: ${location.origin}\nCorreo: ${email}\nContraseña temporal: ${password}\nAl entrar te pedirá cambiarla.`;
+      setTimeout(() => modal('Usuario creado', `
+        <div class="alert info mb"><div>Comparte estos datos con la persona por un medio privado. Al entrar, se le pedirá cambiar la contraseña.</div></div>
+        <div class="field"><label>Datos de acceso</label><textarea class="in mono" rows="6" readonly>${esc(texto)}</textarea></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+          <button type="button" class="btn" onclick="navigator.clipboard.writeText(this.closest('.modal').querySelector('textarea').value).then(()=>toast('Copiado','ok'))">${icon('copy')} Copiar</button>
+          <a class="btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(texto)}"><span style="color:#25D366;display:inline-flex">${icon('wa')}</span> Enviar por WhatsApp</a>
+        </div>`, { noFooter: true }), 50);
+    },
+  });
 };
 A.cambiarRol = async (eid, uidv, rol) => {
   try { chk(await sb.from('miembros').update({ rol }).eq('empresa_id', eid).eq('user_id', uidv)); toast('Rol actualizado', 'ok'); }
@@ -4115,6 +4185,8 @@ async function boot(session) {
     return;
   }
   BOOTING = false; route();
+  // Por invitación (correo) o con contraseña temporal creada por el administrador: debe crear su propia contraseña
+  if (LLEGO_POR_INVITACION || SESSION?.user?.user_metadata?.debeCambiarPassword) setTimeout(() => pedirNuevaPassword(true), 300);
 }
 let bootedFor = null;
 sb.auth.onAuthStateChange((event, session) => {

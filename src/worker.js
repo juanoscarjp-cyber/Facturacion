@@ -28,6 +28,24 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/api/rnc') return consultarRNC(url, ctx);
+    if (url.pathname === '/api/invitar' && request.method === 'POST') {
+      try {
+        const jwt = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+        if (!jwt) return json({ ok: false, error: 'Debes iniciar sesión.' }, 401);
+        return json(await enviarInvitacion(env, jwt, await request.json().catch(() => ({})), url.origin));
+      } catch (err) {
+        return json({ ok: false, error: String(err && err.message || err) }, 400);
+      }
+    }
+    if (url.pathname === '/api/crear-usuario' && request.method === 'POST') {
+      try {
+        const jwt = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+        if (!jwt) return json({ ok: false, error: 'Debes iniciar sesión.' }, 401);
+        return json(await crearUsuarioInvitado(env, jwt, await request.json().catch(() => ({}))));
+      } catch (err) {
+        return json({ ok: false, error: String(err && err.message || err) }, 400);
+      }
+    }
     // Servicios de emisor/receptor electrónico que la DGII y otros contribuyentes invocan (no distinguen mayúsculas)
     const ruta = url.pathname.toLowerCase().replace(/\/+$/, '');
     if (ruta.includes('/fe/')) {
@@ -258,6 +276,62 @@ async function sb(jwt, path, opts = {}) {
   return d;
 }
 const uno = rows => (Array.isArray(rows) ? rows[0] : rows);
+
+/* ---------------- Invitaciones por correo ----------------
+   El dueño/administrador registra la invitación (tabla invitaciones) y luego llama aquí: Supabase envía el
+   correo "Invite user" con un enlace para crear la contraseña. Al entrar, aceptar_invitaciones() lo agrega a la empresa.
+   Los correos salen por el SMTP configurado en Supabase (Authentication → Emails → SMTP Settings). */
+// Verifica que quien llama sea dueño/administrador de la empresa y que exista la invitación para ese email
+async function invitacionValida(jwt, empresaId, email) {
+  email = String(email || '').trim().toLowerCase();
+  if (!empresaId || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Falta la empresa o el email.');
+  if (!(await sb(jwt, 'rpc/es_admin', { method: 'POST', body: JSON.stringify({ e: empresaId }) }))) throw new Error('Solo el dueño o un administrador puede invitar.');
+  const inv = uno(await sb(jwt, `invitaciones?empresa_id=eq.${encodeURIComponent(empresaId)}&email=eq.${encodeURIComponent(email)}&select=email`));
+  if (!inv) throw new Error('Primero registra la invitación.');
+  const emp = uno(await sb(jwt, `empresas?id=eq.${encodeURIComponent(empresaId)}&select=nombre`)) || {};
+  return { email, empresa: emp.nombre || '' };
+}
+const authAdminHeaders = key => ({ apikey: key, ...(key.startsWith('eyJ') ? { authorization: `Bearer ${key}` } : {}), 'content-type': 'application/json' });
+
+// Crea la cuenta del invitado con una contraseña temporal y el correo ya confirmado (no depende de que lleguen correos).
+// Al iniciar sesión, aceptar_invitaciones() lo agrega a la empresa y la app le pide cambiar la contraseña.
+async function crearUsuarioInvitado(env, jwt, { empresaId, email, password }) {
+  const v = await invitacionValida(jwt, empresaId, email);
+  if (String(password || '').length < 8) throw new Error('La contraseña temporal debe tener al menos 8 caracteres.');
+  const key = env.SUPABASE_SERVICE_KEY;
+  if (!key) throw new Error('Falta configurar SUPABASE_SERVICE_KEY en Cloudflare.');
+  const r = await fetch(`${SB_URL}/auth/v1/admin/users`, {
+    method: 'POST', headers: authAdminHeaders(key),
+    body: JSON.stringify({ email: v.email, password, email_confirm: true, user_metadata: { empresa: v.empresa, debeCambiarPassword: true } }),
+  });
+  const t = await r.text();
+  let d; try { d = t ? JSON.parse(t) : {}; } catch { d = { msg: t }; }
+  if (r.ok) return { ok: true, creado: true };
+  const msg = String(d.msg || d.message || d.error_description || d.error || `HTTP ${r.status}`);
+  if (r.status === 422 || /already been registered|already registered|email_exists/i.test(msg + (d.error_code || ''))) return { ok: true, creado: false, yaRegistrado: true };
+  throw new Error('No se pudo crear el usuario: ' + msg);
+}
+
+async function enviarInvitacion(env, jwt, { empresaId, email }, origen) {
+  const v = await invitacionValida(jwt, empresaId, email);
+  email = v.email;
+  const emp = { nombre: v.empresa };
+  const key = env.SUPABASE_SERVICE_KEY;
+  if (!key) throw new Error('Falta configurar SUPABASE_SERVICE_KEY en Cloudflare para enviar correos.');
+  const r = await fetch(`${SB_URL}/auth/v1/invite?redirect_to=${encodeURIComponent(origen + '/')}`, {
+    method: 'POST',
+    headers: { apikey: key, ...(key.startsWith('eyJ') ? { authorization: `Bearer ${key}` } : {}), 'content-type': 'application/json' },
+    body: JSON.stringify({ email, data: { empresa: emp.nombre || '' } }),
+  });
+  const t = await r.text();
+  let d; try { d = t ? JSON.parse(t) : {}; } catch { d = { msg: t }; }
+  if (r.ok) return { ok: true, enviado: true };
+  const msg = String(d.msg || d.message || d.error_description || d.error || `HTTP ${r.status}`);
+  // Ya tiene cuenta: no hace falta correo, verá la empresa al iniciar sesión
+  if (r.status === 422 || /already been registered|already registered|email_exists/i.test(msg + (d.error_code || ''))) return { ok: true, enviado: false, yaRegistrado: true };
+  if (r.status === 429 || /rate limit/i.test(msg)) throw new Error('Se alcanzó el límite de correos por hora de Supabase. Intenta más tarde.');
+  throw new Error('No se pudo enviar el correo: ' + msg);
+}
 
 async function claveMaestra(env) {
   if (!env.ECF_MASTER_KEY) throw new Error('Falta configurar el secreto ECF_MASTER_KEY en Cloudflare (Worker → Settings → Variables and Secrets).');
