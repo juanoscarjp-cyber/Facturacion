@@ -3236,7 +3236,8 @@ async function consultarRNC(rnc) {
   rnc = digits(rnc);
   if (rncCache[rnc]) return rncCache[rnc];
   let r;
-  try { r = await fetch('/api/rnc?rnc=' + rnc); } catch (e) { throw new Error('Sin conexión para consultar la DGII.'); }
+  // Sin caché del navegador: una falla momentánea de la DGII no debe quedarse guardada en el equipo
+  try { r = await fetch('/api/rnc?rnc=' + rnc, { cache: 'no-store' }); } catch (e) { throw new Error('Sin conexión para consultar la DGII.'); }
   const tipo = r.headers.get('content-type') || '';
   if (!tipo.includes('application/json')) throw new Error('La consulta a la DGII solo funciona en la app publicada.');
   const d = await r.json();

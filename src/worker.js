@@ -621,7 +621,12 @@ async function consultarRNC(url, ctx) {
   const cacheKey = new Request(`https://cache.local/rnc/${rnc}`);
   const cache = caches.default;
   const hit = await cache.match(cacheKey);
-  if (hit) return hit;
+  if (hit) {
+    // Respuestas guardadas antes de este cambio podían contener una falla momentánea de la DGII: esas se descartan
+    const guardado = await hit.clone().json().catch(() => null);
+    if (guardado && !guardado.ok && /ocurri[oó] un error/i.test(guardado.error || '')) ctx.waitUntil(cache.delete(cacheKey));
+    else return hit;
+  }
 
   try {
     // La página de la DGII a veces responde "Ocurrió un error al intentar realizar la búsqueda" sin motivo:
