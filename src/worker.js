@@ -624,57 +624,68 @@ async function consultarRNC(url, ctx) {
   if (hit) return hit;
 
   try {
-    // 1) Obtener el formulario (ViewState y cookies de sesión)
-    const r1 = await fetch(DGII_URL, { headers: { 'user-agent': UA } });
-    const html1 = await r1.text();
-    const cookies = (r1.headers.getSetCookie ? r1.headers.getSetCookie() : [r1.headers.get('set-cookie') || ''])
-      .map(c => c.split(';')[0]).filter(Boolean).join('; ');
-    const hidden = name => {
-      const m = html1.match(new RegExp(`id="${name}" value="([^"]*)"`));
-      return m ? decode(m[1]) : '';
-    };
-
-    // 2) Enviar la búsqueda por RNC (postback de ASP.NET)
-    const body = new URLSearchParams({
-      __EVENTTARGET: 'ctl00$cphMain$btnBuscarPorRNC',
-      __EVENTARGUMENT: '',
-      __VIEWSTATE: hidden('__VIEWSTATE'),
-      __VIEWSTATEGENERATOR: hidden('__VIEWSTATEGENERATOR'),
-      __EVENTVALIDATION: hidden('__EVENTVALIDATION'),
-      'ctl00$cphMain$txtRNCCedula': rnc,
-      'ctl00$cphMain$txtRazonSocial': '',
-      'ctl00$cphMain$hidActiveTab': '',
-    });
-    const r2 = await fetch(DGII_URL, {
-      method: 'POST',
-      body,
-      headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': UA, referer: DGII_URL, ...(cookies ? { cookie: cookies } : {}) },
-    });
-    const html = await r2.text();
-
-    const datos = {};
-    const t = html.indexOf('cphMain_dvDatosContribuyentes');
-    if (t >= 0) {
-      const tabla = html.slice(t, html.indexOf('</table>', t));
-      for (const m of tabla.matchAll(/<td[^>]*>([\s\S]*?)<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/g)) {
-        const k = CAMPOS[norm(clean(m[1]))];
-        if (k) datos[k] = clean(m[2]);
-      }
-    }
+    // La página de la DGII a veces responde "Ocurrió un error al intentar realizar la búsqueda" sin motivo:
+    // se reintenta con una sesión nueva y ese error nunca se guarda en caché.
     let res;
-    if (datos.razonSocial) {
-      res = { ok: true, ...datos, rnc };
-    } else {
-      const info = html.match(/id="cphMain_lblInformacion"[^>]*>([\s\S]*?)<\/span>/);
-      const msg = info ? clean(info[1]) : '';
-      res = { ok: false, rnc, error: msg || 'El RNC/cédula no se encuentra inscrito en la DGII.' };
+    for (let intento = 1; intento <= 3; intento++) {
+      res = await buscarEnDGII(rnc);
+      if (res.ok || !res.errorDGII) break;
+      await new Promise(r => setTimeout(r, 400 * intento));
     }
-    const resp = json(res, 200, { 'cache-control': `public, max-age=${res.ok ? 43200 : 600}` });
+    const { errorDGII, ...publico } = res;
+    if (errorDGII) return json({ ...publico, error: 'La DGII no respondió la consulta en este momento. Intenta de nuevo en unos segundos.' }, 200, { 'cache-control': 'no-store' });
+    const resp = json(publico, 200, { 'cache-control': `public, max-age=${publico.ok ? 43200 : 600}` });
     ctx.waitUntil(cache.put(cacheKey, resp.clone()));
     return resp;
   } catch (err) {
     return json({ ok: false, error: 'No se pudo consultar la DGII en este momento. Intenta de nuevo.' }, 502);
   }
+}
+
+async function buscarEnDGII(rnc) {
+  // 1) Obtener el formulario (ViewState y cookies de sesión)
+  const r1 = await fetch(DGII_URL, { headers: { 'user-agent': UA } });
+  const html1 = await r1.text();
+  const cookies = (r1.headers.getSetCookie ? r1.headers.getSetCookie() : [r1.headers.get('set-cookie') || ''])
+    .map(c => c.split(';')[0]).filter(Boolean).join('; ');
+  const hidden = name => {
+    const m = html1.match(new RegExp(`id="${name}" value="([^"]*)"`));
+    return m ? decode(m[1]) : '';
+  };
+
+  // 2) Enviar la búsqueda por RNC (postback de ASP.NET)
+  const body = new URLSearchParams({
+    __EVENTTARGET: 'ctl00$cphMain$btnBuscarPorRNC',
+    __EVENTARGUMENT: '',
+    __VIEWSTATE: hidden('__VIEWSTATE'),
+    __VIEWSTATEGENERATOR: hidden('__VIEWSTATEGENERATOR'),
+    __EVENTVALIDATION: hidden('__EVENTVALIDATION'),
+    'ctl00$cphMain$txtRNCCedula': rnc,
+    'ctl00$cphMain$txtRazonSocial': '',
+    'ctl00$cphMain$hidActiveTab': '',
+  });
+  const r2 = await fetch(DGII_URL, {
+    method: 'POST',
+    body,
+    headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': UA, referer: DGII_URL, ...(cookies ? { cookie: cookies } : {}) },
+  });
+  const html = await r2.text();
+
+  const datos = {};
+  const t = html.indexOf('cphMain_dvDatosContribuyentes');
+  if (t >= 0) {
+    const tabla = html.slice(t, html.indexOf('</table>', t));
+    for (const m of tabla.matchAll(/<td[^>]*>([\s\S]*?)<\/td>\s*<td[^>]*>([\s\S]*?)<\/td>/g)) {
+      const k = CAMPOS[norm(clean(m[1]))];
+      if (k) datos[k] = clean(m[2]);
+    }
+  }
+  if (datos.razonSocial) return { ok: true, ...datos, rnc };
+  const info = html.match(/id="cphMain_lblInformacion"[^>]*>([\s\S]*?)<\/span>/);
+  const msg = info ? clean(info[1]) : '';
+  // "No se encuentra inscrito" es una respuesta válida; "Ocurrió un error…" (o una página vacía) es una falla de la DGII
+  const errorDGII = !msg || /ocurri[oó] un error/i.test(msg) || !r2.ok;
+  return { ok: false, rnc, error: msg || 'El RNC/cédula no se encuentra inscrito en la DGII.', errorDGII };
 }
 
 function decode(s) {
