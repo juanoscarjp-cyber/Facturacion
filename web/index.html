@@ -1037,6 +1037,38 @@ function rangoPeriodo(p) {
 }
 const moneyInt = n => (n < 0 ? '-' : '') + 'RD$' + Math.round(Math.abs(Number(n) || 0)).toLocaleString('en-US');
 A.dbPeriodo = p => { DBP = p; viewDashboard($('#view')); };
+// Impuesto estimado del período: RST (régimen simplificado) o ISR (ordinario). Como son impuestos anuales,
+// el período se proyecta a un año (según los días transcurridos), se calcula el impuesto anual y se prorratea.
+function impuestoEstimado(e, ventas, compras, costos, desde, hasta, todas) {
+  const hoy = today();
+  let ini = desde;
+  if (ini === '0000-01-01') ini = todas.reduce((m, f) => (f.fecha < m ? f.fecha : m), hoy);
+  const fin = hasta > hoy ? hoy : hasta;
+  const dias = Math.max(1, daysBetween(ini, fin) + 1), factor = 365 / dias;
+  const baseEg = x => (x.items ? calc(x).base : calcG(x).base);
+  const ingresos = r2(ventas.reduce((s, f) => s + signo(f) * calc(f).base, 0));
+  const costo = r2(costos.reduce((s, x) => s + baseEg(x), 0));
+  const persona = e.rstPersona || (digits(e.rnc).length === 9 ? 'pj' : 'pf');
+  const quien = persona === 'pj' ? 'persona jurídica' : 'persona física';
+  const r = { rst: false };
+  let anual;
+  if (String(e.regimen || '').startsWith('rst')) {
+    const modo = e.regimen === 'rst_compras' ? 'compras' : 'ingresos';
+    const base = modo === 'compras' ? r2(compras.reduce((s, x) => s + baseEg(x), 0)) : ingresos;
+    anual = rstCalcular({ modo, persona, monto: Math.max(0, base) * factor, margen: num(e.rstMargen ?? RST_MARGEN_DEF), baseItbis: num(e.rstBaseItbis ?? 100) }).total;
+    Object.assign(r, { rst: true, titulo: 'RST estimado del período',
+      detalle: `RST basado en ${modo}${modo === 'ingresos' ? ' · ' + quien + (persona === 'pj' ? ' · 7 %' : ' · escala ISR sobre el 60 %') : ''} · ${modo === 'compras' ? 'compras' : 'ingresos'} sin ITBIS ${moneyInt(base)}` });
+  } else {
+    const renta = r2(ingresos - costo);
+    anual = renta <= 0 ? 0 : persona === 'pj' ? r2(renta * factor * 0.27) : isrEscala(renta * factor, RST_ESCALA_PF);
+    Object.assign(r, { titulo: 'ISR estimado del período',
+      detalle: renta <= 0 ? 'Sin renta neta en el período (los costos superan las ventas)' : `Renta neta ${moneyInt(renta)} (ventas − costos, sin ITBIS) · ${persona === 'pj' ? '27 %' : 'escala de personas físicas'}` });
+  }
+  r.periodo = r2(anual / factor);
+  r.anual = r2(anual);
+  r.nota = dias >= 360 ? `Año completo: ${moneyInt(r.anual)}` : `Proyección del año: ${moneyInt(r.anual)}`;
+  return r;
+}
 function viewDashboard(v) {
   const e = emp();
   crumbs([e.nombre, '#/dashboard'], ['Dashboard']);
@@ -1064,6 +1096,10 @@ function viewDashboard(v) {
   const nuevosClientes = clientes().filter(c => c.creado && enP(c.creado.slice(0, 10))).length;
   const unidades = r2(facturasP.reduce((s, f) => s + (f.items || []).reduce((a, it) => a + num(it.cantidad), 0), 0));
   const etiqueta = DB_PERIODOS[DBP].toLowerCase();
+  const imp = impuestoEstimado(e, ventas, comprasL, [...comprasL, ...gastosL], desde, hasta, fs);
+  // ISR que te retuvieron tus clientes en los pagos del período: es un adelanto que se resta del impuesto
+  const retIsrP = r2(pagosP.reduce((s, p) => s + num(p.retIsr), 0));
+  const aPagarImp = Math.max(0, r2(imp.periodo - retIsrP));
 
   // Últimos 12 meses
   const meses = [];
@@ -1106,6 +1142,14 @@ function viewDashboard(v) {
         </div>
         <div class="db-res"><b>Resultados del período</b>
           <span class="eq"><span style="color:#0369a1">${moneyInt(facturacion)}</span> − <span style="color:#c2410c">${moneyInt(r2(gastosTot + compras))}</span> = <span class="tot" style="color:${resultado < 0 ? 'var(--red)' : '#047857'}">${moneyInt(resultado)}</span></span></div>
+        <div class="db-res" title="Estimado: resta el ISR que te retuvieron tus clientes (registrado en los pagos del período); no incluye anticipos ni ajustes de la declaración.">
+          <b>${imp.titulo}<small style="display:block;font-weight:400;color:var(--muted);font-size:12px;margin-top:2px">${esc(imp.detalle)}</small></b>
+          <span class="eq" style="flex-direction:column;align-items:flex-end;gap:2px">
+            ${retIsrP ? `<span style="font-size:13px;color:var(--muted)">${moneyInt(imp.periodo)} − ISR retenido ${moneyInt(retIsrP)} =</span>` : ''}
+            <span class="tot" style="color:#b91c1c">${moneyInt(aPagarImp)}</span>
+            ${retIsrP > imp.periodo ? `<small style="color:var(--green);font-size:12px">Saldo a favor: ${moneyInt(r2(retIsrP - imp.periodo))}</small>` : ''}
+            <small style="color:var(--muted);font-size:12px">${imp.nota}${imp.rst ? ` · <a href="#/reportes" onclick="LR.tab='rst'" style="text-decoration:underline">Ver cálculo</a>` : ''}</small>
+          </span></div>
       </div>
       <div class="db-card">
         <div class="db-head"><b>Composición de la facturación</b><small>${facturasP.length} facturas · ${DB_PERIODOS[DBP]}</small></div>
@@ -3438,6 +3482,8 @@ function repRST(el) {
   const frac = anio < anioAct || (modo === 'compras' && comprasGuard != null) ? 1 : Math.min(1, (new Date(hoy + 'T12:00:00') - ini) / (fin - ini + 864e5));
   const proy = frac > 0 && frac < 1 ? r2(base / frac) : base;
   const sim = LRST.sim != null ? num(LRST.sim) : null;
+  // ISR que te retuvieron los clientes en los pagos del año (se resta del impuesto a pagar)
+  const retIsr = r2(facturas().filter(vigente).flatMap(f => f.pagos || []).filter(p => p.fecha.slice(0, 4) === String(anio)).reduce((s, p) => s + num(p.retIsr), 0));
   const params = { modo, persona, margen, baseItbis };
   const cols = [['Acumulado ' + (anio === anioAct ? 'a la fecha' : anio), base], ...(frac > 0 && frac < 1 ? [['Proyectado al cierre de ' + anio, proy]] : []), ...(sim != null ? [['Simulación', sim]] : [])]
     .map(([l, m]) => ({ l, m, r: rstCalcular({ ...params, monto: m }) }));
@@ -3454,7 +3500,7 @@ function repRST(el) {
   <div class="grid g4 mb">
     <div class="card kpi"><div class="l">${etiqueta} ${anio === anioAct ? 'a la fecha' : anio}</div><div class="v">${money(base)}</div>${modo === 'ingresos' ? `<div class="d">${ventas.length} documentos · sin ITBIS</div>` : `<div class="d">${comprasGuard != null ? 'Monto registrado manualmente' : 'Según compras/gastos en la app'}</div>`}</div>
     ${frac > 0 && frac < 1 ? `<div class="card kpi"><div class="l">Proyectado al cierre</div><div class="v">${money(proy)}</div><div class="d">${Math.round(frac * 100)}% del año transcurrido</div></div>` : ''}
-    ${(() => { const r = cols[frac > 0 && frac < 1 ? 1 : 0].r; return `<div class="card kpi"><div class="l">Estimado a pagar ${frac > 0 && frac < 1 ? '(proyectado)' : ''}</div><div class="v">${money(r.total)}</div><div class="d">${r.cuotas} cuotas de ${money(r2(r.total / r.cuotas))}</div></div>`; })()}
+    ${(() => { const r = cols[frac > 0 && frac < 1 ? 1 : 0].r; const neto = Math.max(0, r2(r.total - retIsr)); return `<div class="card kpi"><div class="l">Estimado a pagar ${frac > 0 && frac < 1 ? '(proyectado)' : ''}</div><div class="v">${money(neto)}</div><div class="d">${r.cuotas} cuotas de ${money(r2(neto / r.cuotas))}${retIsr ? ` · menos ISR retenido ${money(retIsr)}` : ''}</div></div>`; })()}
     ${modo === 'ingresos' ? `<div class="card kpi"><div class="l">ITBIS facturado ${anio}</div><div class="v">${money(itbisVentas)}</div><div class="d">Se declara aparte (IT-1 mensual)</div></div>` : ''}
   </div>
   <div class="grid" style="grid-template-columns:2fr 1fr">
@@ -3464,8 +3510,9 @@ function repRST(el) {
         ${modo === 'compras' ? fila(`Renta neta imponible (margen ${margen}%)`, c => money(c.r.renta)) : persona === 'pf' ? fila('Renta neta (60% de los ingresos)', c => money(c.r.renta)) : ''}
         ${fila(modo === 'ingresos' && persona === 'pj' ? 'ISR (7% de los ingresos)' : 'ISR según escala', c => money(c.r.isr))}
         ${modo === 'compras' ? fila(`ITBIS (18% del margen · base gravada ${baseItbis}%)`, c => money(c.r.itbis)) : ''}
-        ${fila('Total estimado a pagar', c => money(c.r.total), true)}
-        ${fila(`Cada cuota (${cols[0].r.cuotas})`, c => money(r2(c.r.total / c.r.cuotas)))}
+        ${fila('Total estimado a pagar', c => money(c.r.total), !retIsr)}
+        ${retIsr ? fila(`ISR retenido por tus clientes en ${anio}`, () => '-' + money(retIsr)) + fila('A pagar después de retenciones', c => money(Math.max(0, r2(c.r.total - retIsr))), true) : ''}
+        ${fila(`Cada cuota (${cols[0].r.cuotas})`, c => money(r2(Math.max(0, c.r.total - retIsr) / c.r.cuotas)))}
       </tbody></table></div></div>
     <div class="card"><div class="card-h">Ajustar datos</div><div class="card-b">
       ${modo === 'compras' ? `<div class="field"><label>Compras del año ${anio} (RD$)</label><input class="in" id="rst-compras-in" type="number" step="0.01" min="0" value="${comprasGuard != null ? num(comprasGuard).toFixed(2) : ''}" placeholder="${comprasApp.toFixed(2)}">
@@ -3475,7 +3522,7 @@ function repRST(el) {
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" onclick="A.rst('sim',$('#rst-sim').value===''?null:+$('#rst-sim').value)">Simular</button>${sim != null ? `<button class="btn sm ghost" onclick="A.rst('sim',null)">Quitar</button>` : ''}</div>
     </div></div>
   </div>
-  <div class="hint small muted mt">Estimado con las fórmulas de la <a href="https://dgii.gov.do/herramientas/calculadoras/Paginas/calculadoraRST.aspx" target="_blank" rel="noopener" style="text-decoration:underline">calculadora RST de la DGII</a> (escala 2026). No considera las retenciones de ISR que te hayan hecho ni anticipos pagados; el monto oficial es el de tu declaración en la Oficina Virtual.</div>`;
+  <div class="hint small muted mt">Estimado con las fórmulas de la <a href="https://dgii.gov.do/herramientas/calculadoras/Paginas/calculadoraRST.aspx" target="_blank" rel="noopener" style="text-decoration:underline">calculadora RST de la DGII</a> (escala 2026). Resta el ISR que te retuvieron tus clientes (registrado al cobrar las facturas); no considera anticipos pagados. El monto oficial es el de tu declaración en la Oficina Virtual.</div>`;
 }
 A.rst = (k, v) => { LRST[k] = v; repRST($('#rep')); };
 A.rstGuardarCompras = async anio => {
