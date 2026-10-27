@@ -1262,6 +1262,7 @@ function viewFacturas(v) {
   <div class="page-head"><h1>Facturas</h1><div style="display:flex;gap:8px;flex-wrap:wrap">
     ${esAdmin() && facturas().some(esPrueba) ? `<button class="btn danger" onclick="A.borrarPruebas()">${icon('trash')} Borrar pruebas (${facturas().filter(esPrueba).length})</button>` : ''}
     ${esAdmin() ? `<button class="btn" onclick="A.importarXML()">${icon('down')} Importar XML</button>` : ''}
+    ${esAdmin() ? `<button class="btn" onclick="A.importarExcel()">${icon('down')} Importar Excel</button>` : ''}
     <a class="btn primary" href="#/facturas/nueva">${icon('plus')} Crear</a></div></div>
   ${alertasNCF(e).map(a => `<div class="alert ${a[0]} mb">${esc(a[1])} <a href="#/secuencias" style="text-decoration:underline;margin-left:auto">Ver secuencias</a></div>`).join('')}
   <div class="toolbar"><div class="search">${icon('search')}<input id="lf-q" placeholder="Buscar por número, NCF, cliente o RNC…" value="${esc(LF.q)}" oninput="A.lf('q',this.value)"></div></div>
@@ -1572,6 +1573,123 @@ A.borrarPruebas = () => {
     } catch (err) { toast(errMsg(err), 'error'); }
     finally { busy(false); route(true); }
   }, { okText: 'Borrar pruebas' });
+};
+
+/* ---------- Importar facturas antiguas desde Excel o CSV ----------
+   Una fila por línea de la factura; las filas con el mismo NCF (o número) forman una factura.
+   Columnas: FECHA, NUMERO, NCF, CLIENTE, RNC, DESCRIPCION, CANTIDAD, PRECIO, ITBIS (%), RET ITBIS (%), RET ISR (%), COBRADA, FECHA COBRO, METODO */
+const COLS_IMPORT = ['FECHA', 'NUMERO', 'NCF', 'CLIENTE', 'RNC', 'DESCRIPCION', 'CANTIDAD', 'PRECIO', 'ITBIS', 'RET ITBIS', 'RET ISR', 'COBRADA', 'FECHA COBRO', 'METODO'];
+let IMPORT_X = [];
+const normCol = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\(.*?\)|%|\./g, ' ').trim().replace(/\s+/g, ' ').toUpperCase();
+function fechaImport(v) {
+  if (v instanceof Date && !isNaN(v)) return iso(v);
+  const s = String(v ?? '').trim();
+  if (/^\d{4,5}(\.\d+)?$/.test(s)) { const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(num(s)) * 864e5); return d.toISOString().slice(0, 10); }
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s); if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  m = /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/.exec(s); if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return '';
+}
+A.importarExcel = () => {
+  IMPORT_X = [];
+  modal('Importar facturas desde Excel', `
+    <div class="alert info mb"><div>Sube un Excel o CSV con <b>una fila por línea de factura</b> (las filas con el mismo NCF forman una factura). Columnas:
+      <span class="mono small">${COLS_IMPORT.join(', ')}</span>.<br>
+      ITBIS y retenciones van en porcentaje (18, 100, 10…); COBRADA es SI/NO. Las facturas se registran tal cual, sin enviarse a la DGII, y se avanza el "Último usado" de la secuencia.</div></div>
+    <input type="file" accept=".xlsx,.xls,.csv" onchange="A.importarExcelLeer(this.files[0])">
+    <div id="impx-prev" class="mt"></div>`, { wide: true, okText: 'Importar', onOk: () => A.importarExcelGuardar() });
+};
+A.importarExcelLeer = async file => {
+  if (!file) return;
+  busy(true, 'Leyendo archivo…');
+  let filas = [];
+  try {
+    await cargarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    // En CSV se leen los textos tal cual: así 02/12/2025 es 2 de diciembre (día/mes) y no 12 de febrero
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true, raw: /\.csv$/i.test(file.name) });
+    filas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '', raw: true });
+  } catch (err) { toast('No se pudo leer el archivo: ' + errMsg(err), 'error'); }
+  finally { busy(false); }
+  const e = emp(), grupos = new Map();
+  for (const fila of filas) {
+    const r = {}; for (const [k, v] of Object.entries(fila)) r[normCol(k)] = v;
+    const ncf = String(r.NCF || '').trim().toUpperCase(), numero = String(r.NUMERO || r['NO FACTURA'] || '').trim();
+    const clave = ncf || numero; if (!clave) continue;
+    if (!grupos.has(clave)) grupos.set(clave, { ncf, numero, filas: [] });
+    grupos.get(clave).filas.push(r);
+  }
+  IMPORT_X = [...grupos.values()].map(g => {
+    const p = g.filas[0], d = { ncf: g.ncf, numero: g.numero || g.ncf, fecha: fechaImport(p.FECHA), cliente: String(p.CLIENTE || '').trim(), rnc: digits(p.RNC),
+      cobrada: /^s/i.test(String(p.COBRADA || '')), fechaCobro: fechaImport(p['FECHA COBRO']), metodo: String(p.METODO || '').trim() || 'Transferencia',
+      retItbis: num(p['RET ITBIS']), retIsr: num(p['RET ISR']) };
+    d.tipo = g.ncf ? g.ncf.slice(0, 3) : TIPO_NONE;
+    d.items = g.filas.filter(r => String(r.DESCRIPCION || '').trim()).map(r => ({ id: uid(), productoId: '', sku: '', descripcion: String(r.DESCRIPCION).trim(),
+      cantidad: num(r.CANTIDAD) || 1, precio: num(r.PRECIO), descuento: 0, itbis: r.ITBIS === '' ? 18 : num(r.ITBIS), tipo: 'servicio' }));
+    if (!d.fecha) d.error = 'fecha inválida';
+    else if (g.ncf && !/^(B\d{10}|E\d{12})$/.test(g.ncf)) d.error = 'NCF inválido';
+    else if (g.ncf && !NCF_TIPOS[d.tipo]) d.error = `tipo ${d.tipo} no reconocido`;
+    else if (!d.items.length) d.error = 'sin líneas con descripción';
+    else if (NCF_TIPOS[d.tipo]?.requiereRNC && !validId(d.rnc)) d.error = `${d.tipo} requiere RNC del cliente`;
+    else if (facturas().some(f => (g.ncf && f.ncf === g.ncf) || f.numero === d.numero)) d.error = 'ya está registrada';
+    if (!d.error) d.total = calc({ items: d.items }).total;
+    return d;
+  }).sort((a, b) => (a.fecha + a.ncf).localeCompare(b.fecha + b.ncf));
+  const ok = IMPORT_X.filter(d => !d.error);
+  $('#impx-prev').innerHTML = !IMPORT_X.length ? '<div class="empty">No se encontraron facturas en el archivo.</div>' : `
+    <div class="small mb"><b>${ok.length}</b> listas para importar · total ${money(r2(ok.reduce((s, d) => s + d.total, 0)))}${IMPORT_X.length - ok.length ? ` · ${IMPORT_X.length - ok.length} con problemas (se omiten)` : ''}</div>
+    <div class="tbl-wrap" style="max-height:340px;overflow:auto"><table><thead><tr><th>NCF</th><th>Fecha</th><th>Cliente</th><th class="right">Total</th><th>Estado</th></tr></thead><tbody>
+    ${IMPORT_X.map(d => `<tr><td class="mono small">${esc(d.ncf || d.numero)}<span class="sub">${esc(d.numero)} · ${d.items?.length || 0} línea(s)</span></td><td class="nowrap">${d.fecha ? fdate(d.fecha) : '—'}</td>
+      <td>${esc(d.cliente || 'Consumidor Final')}${d.rnc ? `<span class="sub">${esc(fmtId(d.rnc))}</span>` : ''}</td><td class="right mono">${d.total != null ? money(d.total) : ''}</td>
+      <td>${d.error ? `<span class="pill red">Omitida</span><span class="sub">${esc(d.error)}</span>` : `<span class="pill green">Nueva</span><span class="sub">${d.cobrada ? 'Cobrada' : 'Pendiente'}${d.retItbis ? ` · ret. ITBIS ${d.retItbis}%` : ''}${d.retIsr ? ` · ret. ISR ${d.retIsr}%` : ''}</span>`}</td></tr>`).join('')}
+    </tbody></table></div>`;
+};
+A.importarExcelGuardar = async () => {
+  const lista = IMPORT_X.filter(d => !d.error);
+  if (!lista.length) { toast('Elige un archivo con facturas válidas.', 'error'); return false; }
+  const e = emp();
+  busy(true, `Importando ${lista.length} facturas…`);
+  let n = 0; const fallos = [];
+  try {
+    for (const d of lista) {
+      try {
+        let cli = null;
+        if (d.rnc || d.cliente) {
+          cli = clientes().find(x => (d.rnc && digits(x.rnc) === d.rnc) || (!d.rnc && x.nombre.toLowerCase() === d.cliente.toLowerCase()));
+          if (!cli) {
+            cli = { id: uid(), empresaId: e.id, nombre: d.cliente || d.rnc, rnc: d.rnc, idExtranjero: '', direccion: '', telefono: '', email: '', creado: new Date().toISOString() };
+            chk(await sb.from('clientes').upsert({ id: cli.id, empresa_id: e.id, data: stripIds(cli) }));
+            putCache('clientes', cli);
+          }
+        }
+        const t = calc({ items: d.items });
+        const retItbis = r2(t.itbis * d.retItbis / 100), retIsr = r2(t.base * d.retIsr / 100);
+        const pagos = d.cobrada ? [{ id: uid(), fecha: d.fechaCobro || d.fecha, metodo: METODOS.includes(d.metodo) ? d.metodo : 'Otro', monto: r2(t.total - retItbis - retIsr), referencia: '', por: SESSION.user.email,
+          ...(retItbis ? { retItbis } : {}), ...(retIsr ? { retIsr } : {}) }] : [];
+        const data = {
+          clienteId: cli ? cli.id : '', cliente: cli ? { nombre: cli.nombre, rnc: cli.rnc, idExtranjero: '', direccion: cli.direccion, telefono: cli.telefono, email: cli.email } : { nombre: 'Consumidor Final' },
+          fecha: d.fecha, condicion: d.cobrada ? 'contado' : 'credito', diasCredito: 0, vencimiento: d.cobrada ? '' : d.fecha,
+          items: d.items, propina: false, notas: '', facturaAfectadaId: '', creada: new Date().toISOString(), creadaPor: SESSION.user.email, pagos, estado: 'emitida',
+          numero: d.numero, tipo: d.tipo, ncf: d.ncf, ncfVence: '', importado: { origen: 'Excel', fecha: new Date().toISOString() },
+          ...(d.retItbis || d.retIsr ? { neto: { itbis: d.retItbis, isr: d.retIsr } } : {}),
+        };
+        const row = chk(await sb.from('facturas').insert({ empresa_id: e.id, numero: d.numero, tipo: d.tipo, ncf: d.ncf || null, fecha: d.fecha, data }).select().single());
+        putCache('facturas', fromFacturaRow(row)); n++;
+      } catch (err) { fallos.push(`${d.ncf || d.numero}: ${errMsg(err)}`); }
+    }
+    // Avanza "Último usado" de las secuencias para no repetir esos NCF
+    const avanzadas = [];
+    for (const t of [...new Set(lista.map(d => d.tipo))]) {
+      const s = e.secuencias?.[t]; if (!s || t === TIPO_NONE) continue;
+      const dig = esECF(t) ? 10 : 8;
+      const usados = lista.filter(d => d.tipo === t).map(d => Number(d.ncf.slice(-dig))).filter(x => x >= num(s.desde) && (!s.hasta || x <= num(s.hasta)));
+      const max = Math.max(0, ...usados);
+      if (max > num(s.actual)) {
+        try { chk(await sb.from('secuencias').update({ actual: max }).eq('empresa_id', e.id).eq('tipo', t).lt('actual', max)); avanzadas.push(`${t} → ${max}`); } catch (err) { fallos.push(`Secuencia ${t}: ${errMsg(err)}`); }
+      }
+    }
+    if (avanzadas.length) await reloadEmpresa(e.id).catch(() => { });
+    toast(`${n} facturas importadas.${avanzadas.length ? ' Secuencias avanzadas: ' + avanzadas.join(', ') + '.' : ''}`, 'ok', 7000);
+    if (fallos.length) setTimeout(() => modal('Algunas no se importaron', `<div class="alert err"><div>${fallos.map(esc).join('<br>')}</div></div>`, { noFooter: true }), 300);
+  } finally { busy(false); route(true); }
 };
 
 /* ---------- Importar e-CF (XML) emitidos en el Facturador Gratuito de la DGII u otro sistema ---------- */
