@@ -2663,9 +2663,14 @@ function viewFacturaForm(v, opts) {
     }
     if (pendingCliente && getC(pendingCliente)) {
       draft.clienteId = pendingCliente;
-      if (validId(getC(pendingCliente).rnc) && seqInfo(e, 'B01')) draft.tipo = 'B01';
+      if (validId(getC(pendingCliente).rnc)) draft.tipo = seqInfo(e, 'E31') ? 'E31' : seqInfo(e, 'B01') ? 'B01' : draft.tipo;
     }
     pendingCliente = null;
+    // Solo se factura con secuencias activas: si el tipo elegido no lo está, se usa su equivalente activo
+    if (!esRef(draft.tipo) && draft.tipo !== TIPO_NONE && !seqInfo(e, draft.tipo)) {
+      const equiv = { B02: 'E32', E32: 'B02', B01: 'E31', E31: 'B01', B14: 'E44', E44: 'B14', B15: 'E45', E45: 'B15' }[draft.tipo];
+      draft.tipo = equiv && seqInfo(e, equiv) ? equiv : TIPOS_FACTURA.find(t => seqInfo(e, t)) || TIPO_NONE;
+    }
     if (!draft.items.length) draft.items.push(blankItem());
   }
   renderForm(v);
@@ -2676,8 +2681,8 @@ function renderForm(v = $('#view')) {
   if (d.tipo === 'E47' && !d.retencion) d.retencion = { itbis: 0, isr: 27 };
   const titulo = d._edit ? `Editar ${d.numero}` : d._borradorId ? 'Borrador de factura' : isNota ? 'Nueva nota de crédito' : d.tipo === 'E33' ? 'Nueva nota de débito' : egreso ? 'Nuevo comprobante de compra o gasto' : 'Nueva factura';
   crumbs([e.nombre, '#/dashboard'], ['Facturas', '#/facturas'], [titulo]);
-  // Los tipos electrónicos solo aparecen si la empresa tiene su secuencia e-NCF activa.
-  const tiposDisp = isRef ? [d.tipo] : [...TIPOS_FACTURA.filter(t => !esECF(t) || seqInfo(e, t) || t === d.tipo), TIPO_NONE];
+  // Solo aparecen los tipos con secuencia activa en Secuencias NCF (y el tipo actual, al editar).
+  const tiposDisp = isRef ? [d.tipo] : [...TIPOS_FACTURA.filter(t => seqInfo(e, t) || t === d.tipo), TIPO_NONE];
   const cl = clientes();
   const facturasAfectables = facturas().filter(f => !esNota(f.tipo) && f.ncf && f.estado !== 'anulada').sort((a, b) => b.fecha.localeCompare(a.fecha));
   const seq = d.tipo !== TIPO_NONE ? seqInfo(e, d.tipo) : null;
